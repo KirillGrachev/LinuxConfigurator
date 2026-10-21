@@ -9,6 +9,9 @@
 
 setup() {
     load test_helper
+    # Ключ экспортируется явно: тесты не должны зависеть от того, есть ли на
+    # машине authorized_keys. Шаг users идёт первым, чтобы ssh увидел ключи.
+    lcfg_export_dummy_key
     LCFG_OUT="$(lcfg_run_testmode --run-steps users,ssh,firewall,logging,limits,docker,motd)"
     LCFG_SB="$(grep -oE '/tmp/LCFG-TestMode-[A-Za-z0-9]+' <<< "$LCFG_OUT" | head -1)"
     [ -n "$LCFG_SB" ] || { echo "песочница не найдена: $LCFG_OUT"; false; }
@@ -134,10 +137,15 @@ setup() {
 
 @test "sshd drop-in проходит реальную проверку sshd -t" {
     command -v sshd >/dev/null || skip "sshd не установлен"
+    # sshd -t требует каталог privilege separation и хост-ключи. На свежеустановленном
+    # openssh-server, который ни разу не запускался, того и другого может не быть, и
+    # падение в этом случае не связано с проверяемым конфигом. Создаём каталог, если
+    # хватает прав, иначе честно пропускаем тест.
+    if [ ! -d /run/sshd ]; then
+        mkdir -p /run/sshd 2>/dev/null || skip "нет /run/sshd и прав его создать"
+    fi
+
     run sshd -t -f "$LCFG_SB/etc/ssh/sshd_config.d/00-linuxconfigurator.conf"
-    # На раннере без сгенерированных хост-ключей sshd -t падает не из-за нашего
-    # drop-in, а из-за их отсутствия. Это не дефект конфига, поэтому - skip,
-    # а не провал; количество пропусков видно в сводке run-tests.sh.
     if grep -q 'Could not load host key' <<< "$output"; then
         skip "нет хост-ключей sshd"
     fi
@@ -218,18 +226,16 @@ setup() {
 }
 
 @test "daemon.json является валидным JSON и содержит ротацию логов" {
+    # Docker.Enabled и Docker.Install включаются в конфиге теста, а не берутся из
+    # штатного: в штатном секция выключена, а без установленного docker шаг
+    # завершился бы как Skipped. В тестовом режиме установка симулируется, поэтому
+    # проверка не зависит от того, есть ли docker на хосте или на CI-раннере.
     local out sb2 f
-    out="$(LCFG_FULL_DOCKER=1 lcfg_run_testmode --run-steps docker)"
+    jq '.Docker.Enabled = true | .Docker.Install = true' "$(lcfg_test_config)" > /tmp/lcfg-dk-$$.json
+    out="$("$LCFG_BIN" --test-mode --config /tmp/lcfg-dk-$$.json --run-steps docker 2>&1)"
+    rm -f /tmp/lcfg-dk-$$.json
     sb2="$(grep -oE '/tmp/LCFG-TestMode-[A-Za-z0-9]+' <<< "$out" | head -1)"
     f="$sb2/etc/docker/daemon.json"
-    if [ ! -f "$f" ]; then
-        # Docker.Enabled=false в штатном конфиге - включаем явно.
-        jq '.Docker.Enabled = true' "$(lcfg_test_config)" > /tmp/lcfg-dk-$$.json
-        out="$("$LCFG_BIN" --test-mode --config /tmp/lcfg-dk-$$.json --run-steps docker 2>&1)"
-        rm -f /tmp/lcfg-dk-$$.json
-        sb2="$(grep -oE '/tmp/LCFG-TestMode-[A-Za-z0-9]+' <<< "$out" | head -1)"
-        f="$sb2/etc/docker/daemon.json"
-    fi
     [ -f "$f" ] || { echo "daemon.json не создан: $out"; return 1; }
     # Ошибка в daemon.json - это dockerd, который не стартует вовсе.
     jq -e . "$f" > /dev/null || { echo "daemon.json невалиден:"; cat "$f"; return 1; }

@@ -34,6 +34,17 @@ lcfg_test_config() {
     printf '%s' "$LCFG_CFG"
 }
 
+# Экспортирует заведомо валидный публичный ключ для тестов.
+#
+# Без этого тесты зависели бы от состояния машины: на уже настроенном сервере в
+# /root/.ssh/authorized_keys ключи есть, и шаг ssh проходит, а на чистом раннере
+# CI его защита от локаута корректно отказывалась отключать вход по паролю, и все
+# тесты содержимого падали. Комментарий ключа намеренно не содержит слов из
+# списка заглушек Secrets.BlockTestDataSecrets (example, test.local, dummy и т.п.).
+lcfg_export_dummy_key() {
+    export LCFG_ADMIN_AUTHORIZED_KEYS='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBatsRunKey0000000000000000000000000 ci@lcfg-bats'
+}
+
 # Прогон в тестовом режиме с возвратом всего вывода.
 lcfg_run_testmode() {
     "$LCFG_BIN" --test-mode --config "$(lcfg_test_config)" "$@" 2>&1

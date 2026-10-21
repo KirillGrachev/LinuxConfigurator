@@ -78,7 +78,8 @@ setup() {
 }
 
 @test "test-mode не взводит реальных systemd-таймеров отката" {
-    run lcfg_run_testmode --run-steps ssh,firewall
+    lcfg_export_dummy_key
+    run lcfg_run_testmode --run-steps users,ssh,firewall
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
     run systemctl list-timers --all --no-legend
     ! grep -q 'lcfg-sshd-revert\|lcfg-fw-revert' <<< "$output" || {

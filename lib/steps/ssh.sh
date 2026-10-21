@@ -79,6 +79,8 @@ step_ssh() {
         ssh_neutralize_cloud_init
     fi
 
+    ssh_ensure_privsep_dir
+
     # Проверка синтаксиса до применения. В тестовом режиме sshd -t симулируется.
     if config_get_bool '.Ssh.ValidateBeforeReload' true; then
         if ! run_quiet sshd -t; then
@@ -119,9 +121,56 @@ step_ssh() {
     return $?
 }
 
+# Создаёт каталог privilege separation, без которого sshd -t отказывается работать.
+#
+# На свежеустановленном openssh-server, который ни разу не запускался, /run/sshd
+# отсутствует: его создаёт tmpfiles.d при загрузке либо systemd через
+# RuntimeDirectory= в юните ssh. Если openssh-server поставили уже после загрузки
+# (типично для провижининга и для CI-раннера), каталога нет, и sshd -t завершается
+# с "Missing privilege separation directory" независимо от содержимого конфига.
+#
+# Последствие без этой функции серьёзнее косметики: шаг трактует любой ненулевой
+# код sshd -t как невалидную конфигурацию и ОТКАТЫВАЕТ правильные настройки.
+ssh_ensure_privsep_dir() {
+    local dir='/run/sshd'
+
+    if testmode_enabled; then
+        testmode_journal directory ensure "$dir" "privilege separation для sshd -t"
+        return 0
+    fi
+
+    if [[ -d "$dir" ]]; then
+        return 0
+    fi
+
+    # if/then, а не `mkdir && chmod || warn`: в форме A && B || C ветка C
+    # выполняется и когда B вернул ненулевой код, то есть предупреждение
+    # печаталось бы и после успешного создания каталога.
+    if ! mkdir -p "$dir" 2>/dev/null; then
+        log_warn "Не удалось создать ${dir}: sshd -t может завершиться ошибкой, не связанной с конфигурацией."
+        return 1
+    fi
+    chmod 0755 "$dir" 2>/dev/null || true
+    log_debug "Создан ${dir} (privilege separation) для корректной работы sshd -t."
+    return 0
+}
+
 # Есть ли хоть у кого-то authorized_keys с реальным ключом.
+#
+# Проверяются два источника, потому что одного недостаточно:
+#   1. результат шага users в ЭТОМ ЖЕ прогоне (флаг users_keys_installed) - в
+#      тестовом режиме users пишет ключи в песочницу, и сканирование реальной
+#      файловой системы их не увидит; без этой ветки два шага одного прогона
+#      расходились в представлениях о состоянии машины;
+#   2. реальная файловая система - для случая, когда ssh запускается отдельно
+#      (--run-steps ssh) и ключи ставили раньше или вручную.
 ssh_any_key_present() {
     local home auth
+
+    if [[ "$(runtime_value users_keys_installed false)" == true ]]; then
+        log_debug 'Ключи установлены шагом users в текущем прогоне.'
+        return 0
+    fi
 
     for home in /root /home/*; do
         auth="${home}/.ssh/authorized_keys"

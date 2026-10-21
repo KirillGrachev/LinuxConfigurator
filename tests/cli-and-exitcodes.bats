@@ -57,12 +57,18 @@ setup() {
 }
 
 @test "алиас шага принимается вместо канонического имени" {
-    run lcfg_run_testmode --run-steps sshd,fw,ntp
+    # users добавлен и ключ экспортирован: на чистой машине защита шага ssh от
+    # локаута иначе корректно отказалась бы отключать пароли, и тест проверял бы
+    # не разрешение алиасов, а наличие ключей на хосте.
+    lcfg_export_dummy_key
+    run lcfg_run_testmode --run-steps users,sshd,fw,ntp
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
     # Алиасы разрешаются в канонические имена, и в сводке видны именно они.
     grep -q '\[OK\]    ssh ' <<< "$output" || { echo "$output"; return 1; }
     grep -q '\[OK\]    firewall ' <<< "$output" || { echo "$output"; return 1; }
     grep -q '\[OK\]    time ' <<< "$output" || { echo "$output"; return 1; }
+    # Алиас users отсутствует намеренно: каноническое имя уже добавлено выше.
+    grep -q '\[OK\]    users ' <<< "$output" || { echo "$output"; return 1; }
 }
 
 @test "регистр имени шага не важен" {
