@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    name: ShellCheck, bats-тесты и прогон в тестовом режиме
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Чекаут репозитория
+        uses: actions/checkout@v4
+
+      - name: Установка инструментов (jq, shellcheck, bats)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq jq shellcheck bats
+
+      - name: Версии инструментов
+        run: |
+          bash --version | head -1
+          printf 'jq         %s\n' "$(jq --version)"
+          printf 'shellcheck %s\n' "$(shellcheck --version | awk -F': ' '/^version:/{print $2}')"
+          bats --version
+
+      - name: Проверка синтаксиса (bash -n)
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            bash -n "$f" || { echo "::error::синтаксическая ошибка в $f"; fail=1; }
+          done < <(find . -path ./.git -prune -o -name '*.sh' -print | sort)
+          exit "$fail"
+
+      - name: ShellCheck
+        run: |
+          shellcheck -x configure-linux.sh lib/*.sh lib/*/*.sh tests/run-tests.sh
+
+      - name: Валидация config.json по схеме
+        run: ./configure-linux.sh --validate-config
+
+      - name: Тесты (bats, TAP-формат)
+        run: ./tests/run-tests.sh --tap
+
+      - name: Прогон всех шагов в тестовом режиме
+        # Тестовый режим не требует root и ничего не меняет: на раннере прогон
+        # проходит от обычного пользователя.
+        run: |
+          jq '.Hostname.Name = "ci-runner"' config/config.json > /tmp/ci.json
+          ./configure-linux.sh --test-mode --run-all --config /tmp/ci.json
+
+      - name: Проверка, что тестовый режим не тронул раннер
+        run: |
+          if [ -e /etc/nftables.conf ] && grep -q 'inet fw' /etc/nftables.conf; then
+            echo "::error::тестовый режим изменил /etc/nftables.conf раннера"; exit 1
+          fi
+          if [ -e /root/lcfg-generated-keys ]; then
+            echo "::error::тестовый режим создал каталог ключей"; exit 1
+          fi
+          echo "раннер чист"
+
+      - name: Отчёт тестового режима (артефакт)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testmode-report
+          path: /tmp/LCFG-TestMode-*/testmode-report.json
+          if-no-files-found: ignore
+          retention-days: 7
