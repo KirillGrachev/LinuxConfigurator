@@ -1,0 +1,375 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LinuxConfigurator configuration",
+  "type": "object",
+  "properties": {
+
+    "Meta": {
+      "type": "object",
+      "properties": {
+        "Version":     { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+.][0-9A-Za-z.-]+)?$" },
+        "IsTestData":  { "type": "boolean" },
+        "Environment": { "type": "string", "enum": ["DEV", "TEST", "STAGE", "PROD"] },
+        "Maintainer":  { "type": "string" },
+        "Description": { "type": "string" }
+      }
+    },
+
+    "General": {
+      "type": "object",
+      "properties": {
+        "Enabled":            { "type": "boolean" },
+        "DefaultSteps":       { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "StepDelaySeconds":   { "type": "integer", "minimum": 0, "maximum": 60 },
+        "StopOnFirstFailure": { "type": "boolean" },
+        "ConfirmImpact":      { "type": "string", "enum": ["Low", "Medium", "High"] },
+        "RequireRoot":        { "type": "boolean" }
+      }
+    },
+
+    "Logging": {
+      "type": "object",
+      "properties": {
+        "Level":          { "type": "string", "enum": ["Debug", "Info", "Warn", "Error", "Fatal"] },
+        "FilePath":       { "type": ["string", "null"] },
+        "RetentionDays":  { "type": "integer", "minimum": 0, "maximum": 3650 },
+        "WriteToConsole": { "type": "boolean" }
+      }
+    },
+
+    "Backup": {
+      "type": "object",
+      "properties": {
+        "Enabled":       { "type": "boolean" },
+        "DirectoryPath": { "type": "string", "pattern": "^/" }
+      }
+    },
+
+    "Secrets": {
+      "type": "object",
+      "properties": {
+        "Provider":                 { "type": "string", "enum": ["Environment", "Plain", "None"] },
+        "EnvironmentVariablePrefix":{ "type": "string", "minLength": 1 },
+        "BlockTestDataSecrets":     { "type": "boolean" },
+        "Values":                   { "type": "object" }
+      }
+    },
+
+    "Hostname": {
+      "type": "object",
+      "properties": {
+        "Enabled":            { "type": "boolean" },
+        "Name":               { "type": "string", "pattern": "^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$" },
+        "UpdateHostsFile":    { "type": "boolean" },
+        "KeepOldNameAsAlias": { "type": "boolean" }
+      }
+    },
+
+    "Time": {
+      "type": "object",
+      "properties": {
+        "Enabled":  { "type": "boolean" },
+        "Timezone": { "type": "string", "pattern": "^[A-Za-z]+/[A-Za-z_+-]+$" },
+        "Locale":   { "type": "string", "pattern": "^([A-Za-z]{2,3}(_[A-Za-z]{2,4})?(-[A-Za-z0-9]{2,8})*|C|POSIX)(\\.[A-Za-z0-9-]+)?(@[A-Za-z0-9]+)?$" },
+        "Ntp": {
+          "type": "object",
+          "properties": {
+            "Enabled":             { "type": "boolean" },
+            "Preferred":           { "type": "string", "enum": ["chrony", "systemd-timesyncd", "ntpd"] },
+            "Servers":             { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "FallbackToTimesyncd": { "type": "boolean" }
+          }
+        }
+      }
+    },
+
+    "Swap": {
+      "type": "object",
+      "properties": {
+        "Enabled":               { "type": "boolean" },
+        "FilePath":              { "type": "string", "pattern": "^/" },
+        "SizeMegabytes":         { "type": "integer", "minimum": 0, "maximum": 262144 },
+        "Swappiness":            { "type": "integer", "minimum": 0, "maximum": 200 },
+        "VfsCachePressure":      { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "SkipIfAlreadyPresent":  { "type": "boolean" },
+        "MinFreeDiskMegabytes":  { "type": "integer", "minimum": 0, "maximum": 1048576 }
+      }
+    },
+
+    "Sysctl": {
+      "type": "object",
+      "properties": {
+        "Enabled":          { "type": "boolean" },
+        "DropInPath":       { "type": "string", "pattern": "^/etc/sysctl\\.d/.+\\.conf$" },
+        "ApplyImmediately": { "type": "boolean" },
+        "Values":           { "type": "object" }
+      }
+    },
+
+    "Limits": {
+      "type": "object",
+      "properties": {
+        "Enabled":                   { "type": "boolean" },
+        "SystemdDefaultLimitNOFILE": { "type": "integer", "minimum": 1024, "maximum": 10485760 },
+        "SystemdDefaultTasksMax":    { "type": ["string", "integer"] },
+        "PamDropInPath":             { "type": "string", "pattern": "^/etc/security/limits\\.d/.+\\.conf$" },
+        "Nofile": {
+          "type": "object",
+          "properties": {
+            "Soft":  { "type": "integer", "minimum": 1024, "maximum": 10485760 },
+            "Hard":  { "type": "integer", "minimum": 1024, "maximum": 10485760 },
+            "Scope": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+
+    "Packages": {
+      "type": "object",
+      "properties": {
+        "Enabled":    { "type": "boolean" },
+        "Autoremove": { "type": "boolean" },
+        "Install": {
+          "type": "object",
+          "properties": {
+            "Common": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "Debian": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "Rhel":   { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "Suse":   { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "Alpine": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "Remove": {
+          "type": "object",
+          "properties": {
+            "Common": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "Debian": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "Rhel":   { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "Suse":   { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "Alpine": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        }
+      }
+    },
+
+    "Users": {
+      "type": "object",
+      "properties": {
+        "Enabled": { "type": "boolean" },
+        "Admin": {
+          "type": "object",
+          "properties": {
+            "Name":             { "type": "string", "pattern": "^[a-z_][a-z0-9_-]{0,31}$" },
+            "Groups":           { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "Shell":            { "type": "string", "pattern": "^/" },
+            "CreateHome":       { "type": "boolean" },
+            "PasswordlessSudo": { "type": "boolean" }
+          }
+        },
+        "SudoersDropInPath":         { "type": "string", "pattern": "^/etc/sudoers\\.d/" },
+        "AuthorizedKeysSecret":      { "type": "string", "minLength": 1 },
+        "RootAuthorizedKeysSecret":  { "type": "string" },
+        "GenerateKeyIfSecretMissing":{ "type": "boolean" },
+        "PrivateKeyOutputPath":      { "type": "string" },
+        "ExtraUsers":                { "type": "array" }
+      }
+    },
+
+    "Ssh": {
+      "type": "object",
+      "properties": {
+        "Enabled":                     { "type": "boolean" },
+        "DropInPath":                  { "type": "string", "pattern": "^/etc/ssh/sshd_config\\.d/.+\\.conf$" },
+        "PasswordAuthentication":      { "type": "boolean" },
+        "KbdInteractiveAuthentication":{ "type": "boolean" },
+        "PermitRootLogin":             { "type": "string", "enum": ["yes", "no", "prohibit-password", "without-password", "forced-commands-only"] },
+        "PubkeyAuthentication":        { "type": "boolean" },
+        "AuthenticationMethods":       { "type": "string" },
+        "MaxAuthTries":                { "type": "integer", "minimum": 1, "maximum": 10 },
+        "LoginGraceTime":              { "type": "integer", "minimum": 0, "maximum": 600 },
+        "MaxSessions":                 { "type": "integer", "minimum": 1, "maximum": 100 },
+        "MaxStartups":                 { "type": "string", "pattern": "^[0-9]+(:[0-9]+:[0-9]+)?$" },
+        "ClientAliveInterval":         { "type": "integer", "minimum": 0, "maximum": 86400 },
+        "ClientAliveCountMax":         { "type": "integer", "minimum": 0, "maximum": 100 },
+        "X11Forwarding":               { "type": "boolean" },
+        "AllowTcpForwarding":          { "type": "boolean" },
+        "AllowAgentForwarding":        { "type": "boolean" },
+        "PermitTunnel":                { "type": "boolean" },
+        "PermitUserEnvironment":       { "type": "boolean" },
+        "PermitEmptyPasswords":        { "type": "boolean" },
+        "HostbasedAuthentication":     { "type": "boolean" },
+        "IgnoreRhosts":                { "type": "boolean" },
+        "StrictModes":                 { "type": "boolean" },
+        "Compression":                 { "type": "boolean" },
+        "PrintMotd":                   { "type": "boolean" },
+        "PrintLastLog":                { "type": "boolean" },
+        "LogLevel":                    { "type": "string", "enum": ["QUIET", "FATAL", "ERROR", "INFO", "VERBOSE", "DEBUG", "DEBUG1", "DEBUG2", "DEBUG3"] },
+        "NeutralizeCloudInitDropIn":   { "type": "boolean" },
+        "CloudInitDropInPath":         { "type": "string" },
+        "ValidateBeforeReload":        { "type": "boolean" },
+        "ReloadInsteadOfRestart":      { "type": "boolean" },
+        "RollbackGuardSeconds":        { "type": "integer", "minimum": 0, "maximum": 3600 },
+        "AllowUsers":                  { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "AllowGroups":                 { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+
+    "Firewall": {
+      "type": "object",
+      "properties": {
+        "Enabled":                  { "type": "boolean" },
+        "TableName":                { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,30}$" },
+        "ConfigPath":               { "type": "string", "pattern": "^/" },
+        "IncludeDir":               { "type": "string", "pattern": "^/" },
+        "AllowedTcpPorts":          { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 65535 } },
+        "AllowedUdpPorts":          { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 65535 } },
+        "InputPolicy":              { "type": "string", "enum": ["drop", "accept"] },
+        "AllowLoopback":            { "type": "boolean" },
+        "AllowEstablished":         { "type": "boolean" },
+        "AllowIcmp":                { "type": "boolean" },
+        "AllowDhcp":                { "type": "boolean" },
+        "AllowContainerInterfaces": { "type": "boolean" },
+        "ContainerInterfaceNames":  { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "SshRateLimitPerMinute":    { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "SshRateLimitBurst":        { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "LogDropped":               { "type": "boolean" },
+        "LogPrefix":                { "type": "string", "maxLength": 28 },
+        "LogRatePerMinute":         { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "ProtectSshPort":           { "type": "boolean" },
+        "RollbackGuardSeconds":     { "type": "integer", "minimum": 0, "maximum": 3600 },
+        "TouchForwardChain":        { "type": "boolean" }
+      }
+    },
+
+    "Fail2ban": {
+      "type": "object",
+      "properties": {
+        "Enabled":           { "type": "boolean" },
+        "Install":           { "type": "boolean" },
+        "JailDropInPath":    { "type": "string", "pattern": "^/etc/fail2ban/jail\\.d/.+" },
+        "Backend":           { "type": "string", "enum": ["auto", "systemd", "polling", "pyinotify"] },
+        "DefaultBanTime":    { "type": "string", "pattern": "^[0-9]+[smhdw]?$" },
+        "DefaultFindTime":   { "type": "string", "pattern": "^[0-9]+[smhdw]?$" },
+        "DefaultMaxRetry":   { "type": "integer", "minimum": 1, "maximum": 100 },
+        "IgnoreIp":          { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "Jails":             { "type": "object" }
+      }
+    },
+
+    "Updates": {
+      "type": "object",
+      "properties": {
+        "Enabled":                    { "type": "boolean" },
+        "ConfigureUnattendedUpgrades":{ "type": "boolean" },
+        "UpdatePackageListsDaily":    { "type": "boolean" },
+        "AutocleanIntervalDays":      { "type": "integer", "minimum": 0, "maximum": 365 },
+        "RemoveUnusedDependencies":   { "type": "boolean" },
+        "AutomaticReboot":            { "type": "boolean" },
+        "AutomaticRebootTime":        { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+        "SyslogEnable":               { "type": "boolean" },
+        "AllowedOrigins":             { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "NeedrestartMode":            { "type": "string", "enum": ["a", "i", "l"] },
+        "UpgradeNow":                 { "type": "boolean" },
+        "PurgeOldKernels":            { "type": "boolean" }
+      }
+    },
+
+    "Journald": {
+      "type": "object",
+      "properties": {
+        "Enabled":           { "type": "boolean" },
+        "DropInPath":        { "type": "string", "pattern": "^/etc/systemd/journald\\.conf\\.d/.+\\.conf$" },
+        "SystemMaxUse":      { "type": "string", "pattern": "^[0-9]+[KMGT]$" },
+        "SystemMaxFileSize": { "type": "string", "pattern": "^[0-9]+[KMGT]$" },
+        "RuntimeMaxUse":     { "type": "string", "pattern": "^[0-9]+[KMGT]$" },
+        "MaxRetentionSec":   { "type": "string", "pattern": "^[0-9]+(s|min|h|day|week|month|year)$" },
+        "Compress":          { "type": "boolean" },
+        "ForwardToSyslog":   { "type": "boolean" }
+      }
+    },
+
+    "Logrotate": {
+      "type": "object",
+      "properties": {
+        "Enabled":    { "type": "boolean" },
+        "ConfigPath": { "type": "string", "pattern": "^/etc/logrotate\\.d/" },
+        "Rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["Path", "Rotate"],
+            "properties": {
+              "Path":          { "type": "string", "minLength": 1 },
+              "Rotate":        { "type": "integer", "minimum": 1, "maximum": 365 },
+              "MaxSize":       { "type": "string", "pattern": "^[0-9]+[kMG]$" },
+              "Frequency":     { "type": "string", "enum": ["daily", "weekly", "monthly", "yearly", "hourly"] },
+              "Compress":      { "type": "boolean" },
+              "DelayCompress": { "type": "boolean" },
+              "MissingOk":     { "type": "boolean" },
+              "NotIfEmpty":    { "type": "boolean" },
+              "CopyTruncate":  { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+
+    "Docker": {
+      "type": "object",
+      "properties": {
+        "Enabled":                { "type": "boolean" },
+        "Install":                { "type": "boolean" },
+        "DaemonJsonPath":         { "type": "string", "pattern": "^/" },
+        "LogDriver":              { "type": "string", "enum": ["json-file", "journald", "syslog", "local", "none"] },
+        "LogMaxSize":             { "type": "string", "pattern": "^[0-9]+[kmg]$" },
+        "LogMaxFile":             { "type": "integer", "minimum": 1, "maximum": 100 },
+        "LogCompress":            { "type": "boolean" },
+        "UserlandProxy":          { "type": "boolean" },
+        "DefaultNofile":          { "type": "integer", "minimum": 1024, "maximum": 10485760 },
+        "InstallComposePlugin":   { "type": "boolean" },
+        "RestartAfterConfigure":  { "type": "boolean" },
+        "AdminGroupAccess":       { "type": "boolean" }
+      }
+    },
+
+    "Motd": {
+      "type": "object",
+      "properties": {
+        "Enabled":          { "type": "boolean" },
+        "Path":             { "type": "string", "pattern": "^/" },
+        "ShowKernel":       { "type": "boolean" },
+        "ShowMemory":       { "type": "boolean" },
+        "ShowDisk":         { "type": "boolean" },
+        "ShowFailedUnits":  { "type": "boolean" },
+        "ShowRebootPending":{ "type": "boolean" },
+        "CustomText":       { "type": "string" }
+      }
+    },
+
+    "Cleanup": {
+      "type": "object",
+      "properties": {
+        "Enabled":           { "type": "boolean" },
+        "Autoremove":        { "type": "boolean" },
+        "AptClean":          { "type": "boolean" },
+        "PurgeOldKernels":   { "type": "boolean" },
+        "KeepKernels":       { "type": "integer", "minimum": 1, "maximum": 10 },
+        "JournalVacuumSize": { "type": "string", "pattern": "^[0-9]+[KMGT]$" },
+        "RemoveTempFiles":   { "type": "boolean" }
+      }
+    },
+
+    "Report": {
+      "type": "object",
+      "properties": {
+        "Enabled":            { "type": "boolean" },
+        "PrintToConsole":     { "type": "boolean" },
+        "FilePath":           { "type": "string" },
+        "IncludeFailedUnits": { "type": "boolean" },
+        "IncludeOpenPorts":   { "type": "boolean" },
+        "IncludeRebootHint":  { "type": "boolean" }
+      }
+    }
+
+  }
+}

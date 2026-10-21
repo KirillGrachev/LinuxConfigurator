@@ -1,0 +1,403 @@
+{
+  "$schema": "./config.schema.json",
+
+  "Meta": {
+    "Version": "1.0.0",
+    "IsTestData": false,
+    "Environment": "PROD",
+    "Maintainer": "",
+    "Description": "Базовая настройка Linux-сервера: действия, которые выполняются на каждой машине независимо от её назначения. Замените Hostname.Name и Users.AuthorizedKeys перед первым применением."
+  },
+
+  "General": {
+    "Enabled": true,
+    "DefaultSteps": [
+      "hostname",
+      "time",
+      "swap",
+      "sysctl",
+      "limits",
+      "packages",
+      "users",
+      "ssh",
+      "firewall",
+      "fail2ban",
+      "updates",
+      "logging",
+      "docker",
+      "motd",
+      "cleanup",
+      "report"
+    ],
+    "StepDelaySeconds": 1,
+    "StopOnFirstFailure": false,
+    "ConfirmImpact": "Low",
+    "RequireRoot": true
+  },
+
+  "Logging": {
+    "Level": "Info",
+    "FilePath": "/var/log/linuxconfigurator/configurator.log",
+    "RetentionDays": 30,
+    "WriteToConsole": true
+  },
+
+  "Backup": {
+    "Enabled": true,
+    "DirectoryPath": "/var/backups/linuxconfigurator"
+  },
+
+  "Secrets": {
+    "Provider": "Environment",
+    "EnvironmentVariablePrefix": "LCFG_",
+    "BlockTestDataSecrets": true,
+    "Values": {}
+  },
+
+  "Hostname": {
+    "Enabled": true,
+    "Name": "changeme-host",
+    "UpdateHostsFile": true,
+    "KeepOldNameAsAlias": true
+  },
+
+  "Time": {
+    "Enabled": true,
+    "Timezone": "Europe/Helsinki",
+    "Locale": "C.UTF-8",
+    "Ntp": {
+      "Enabled": true,
+      "Preferred": "chrony",
+      "Servers": [],
+      "FallbackToTimesyncd": true
+    }
+  },
+
+  "Swap": {
+    "Enabled": true,
+    "FilePath": "/swapfile",
+    "SizeMegabytes": 3072,
+    "Swappiness": 10,
+    "VfsCachePressure": 50,
+    "SkipIfAlreadyPresent": true,
+    "MinFreeDiskMegabytes": 4096
+  },
+
+  "Sysctl": {
+    "Enabled": true,
+    "DropInPath": "/etc/sysctl.d/99-linuxconfigurator.conf",
+    "ApplyImmediately": true,
+    "Values": {
+      "vm.swappiness": 10,
+      "vm.overcommit_memory": 1,
+      "vm.vfs_cache_pressure": 50,
+      "vm.panic_on_oom": 0,
+      "kernel.panic": 30,
+      "kernel.panic_on_oops": 1,
+      "kernel.dmesg_restrict": 1,
+      "kernel.kptr_restrict": 1,
+      "kernel.yama.ptrace_scope": 1,
+      "fs.file-max": 524288,
+      "fs.nr_open": 1048576,
+      "fs.protected_hardlinks": 1,
+      "fs.protected_symlinks": 1,
+      "fs.suid_dumpable": 0,
+      "net.core.somaxconn": 4096,
+      "net.core.netdev_max_backlog": 4096,
+      "net.ipv4.tcp_max_syn_backlog": 4096,
+      "net.ipv4.tcp_fin_timeout": 15,
+      "net.ipv4.tcp_tw_reuse": 1,
+      "net.ipv4.tcp_slow_start_after_idle": 0,
+      "net.ipv4.tcp_keepalive_time": 600,
+      "net.ipv4.tcp_keepalive_intvl": 30,
+      "net.ipv4.tcp_keepalive_probes": 5,
+      "net.ipv4.tcp_mtu_probing": 1,
+      "net.ipv4.ip_local_port_range": "10240 65535",
+      "net.ipv4.conf.all.rp_filter": 1,
+      "net.ipv4.conf.default.rp_filter": 1,
+      "net.ipv4.conf.all.accept_redirects": 0,
+      "net.ipv4.conf.default.accept_redirects": 0,
+      "net.ipv4.conf.all.send_redirects": 0,
+      "net.ipv4.conf.all.secure_redirects": 0,
+      "net.ipv4.conf.all.accept_source_route": 0,
+      "net.ipv4.conf.default.accept_source_route": 0,
+      "net.ipv4.conf.all.log_martians": 1,
+      "net.ipv4.icmp_echo_ignore_broadcasts": 1,
+      "net.ipv4.icmp_ignore_bogus_error_responses": 1,
+      "net.ipv6.conf.all.accept_redirects": 0,
+      "net.ipv6.conf.default.accept_redirects": 0,
+      "net.ipv6.conf.all.accept_source_route": 0,
+      "net.ipv6.conf.all.accept_ra": 1,
+      "net.bridge.bridge-nf-call-iptables": 0,
+      "net.bridge.bridge-nf-call-ip6tables": 0
+    }
+  },
+
+  "Limits": {
+    "Enabled": true,
+    "SystemdDefaultLimitNOFILE": 1048576,
+    "SystemdDefaultTasksMax": "infinity",
+    "PamDropInPath": "/etc/security/limits.d/99-linuxconfigurator.conf",
+    "Nofile": {
+      "Soft": 65536,
+      "Hard": 65536,
+      "Scope": "*"
+    }
+  },
+
+  "Packages": {
+    "Enabled": true,
+    "Autoremove": false,
+    "Install": {
+      "Common": [
+        "ca-certificates",
+        "curl",
+        "wget",
+        "gnupg",
+        "jq",
+        "git",
+        "tmux",
+        "htop",
+        "lsof",
+        "strace",
+        "rsync",
+        "unzip",
+        "zip",
+        "psmisc",
+        "acl",
+        "logrotate",
+        "cron"
+      ],
+      "Debian": [
+        "apt-transport-https",
+        "software-properties-common",
+        "bash-completion",
+        "sysstat",
+        "iotop",
+        "tcpdump",
+        "dnsutils",
+        "iputils-ping",
+        "net-tools",
+        "haveged",
+        "chrony",
+        "needrestart",
+        "debian-goodies"
+      ],
+      "Rhel": [
+        "bash-completion",
+        "sysstat",
+        "iotop",
+        "tcpdump",
+        "bind-utils",
+        "iputils",
+        "net-tools",
+        "haveged",
+        "chrony",
+        "policycoreutils-python-utils"
+      ]
+    },
+    "Remove": {
+      "Common": [],
+      "Debian": [],
+      "Rhel": []
+    }
+  },
+
+  "Users": {
+    "Enabled": true,
+    "Admin": {
+      "Name": "admin",
+      "Groups": ["sudo"],
+      "Shell": "/bin/bash",
+      "CreateHome": true,
+      "PasswordlessSudo": true
+    },
+    "SudoersDropInPath": "/etc/sudoers.d/10-linuxconfigurator-admin",
+    "AuthorizedKeysSecret": "admin_authorized_keys",
+    "RootAuthorizedKeysSecret": "root_authorized_keys",
+    "GenerateKeyIfSecretMissing": true,
+    "PrivateKeyOutputPath": "",
+    "ExtraUsers": []
+  },
+
+  "Ssh": {
+    "Enabled": true,
+    "DropInPath": "/etc/ssh/sshd_config.d/00-linuxconfigurator.conf",
+    "PasswordAuthentication": false,
+    "KbdInteractiveAuthentication": false,
+    "PermitRootLogin": "prohibit-password",
+    "PubkeyAuthentication": true,
+    "AuthenticationMethods": "publickey",
+    "MaxAuthTries": 3,
+    "LoginGraceTime": 30,
+    "MaxSessions": 10,
+    "MaxStartups": "10:30:60",
+    "ClientAliveInterval": 300,
+    "ClientAliveCountMax": 2,
+    "X11Forwarding": false,
+    "AllowTcpForwarding": true,
+    "AllowAgentForwarding": false,
+    "PermitTunnel": false,
+    "PermitUserEnvironment": false,
+    "PermitEmptyPasswords": false,
+    "HostbasedAuthentication": false,
+    "IgnoreRhosts": true,
+    "StrictModes": true,
+    "Compression": false,
+    "PrintMotd": false,
+    "PrintLastLog": true,
+    "LogLevel": "VERBOSE",
+    "NeutralizeCloudInitDropIn": true,
+    "CloudInitDropInPath": "/etc/ssh/sshd_config.d/50-cloud-init.conf",
+    "ValidateBeforeReload": true,
+    "ReloadInsteadOfRestart": true,
+    "RollbackGuardSeconds": 300,
+    "AllowUsers": [],
+    "AllowGroups": []
+  },
+
+  "Firewall": {
+    "Enabled": true,
+    "TableName": "fw",
+    "ConfigPath": "/etc/nftables.conf",
+    "IncludeDir": "/etc/nftables.d",
+    "AllowedTcpPorts": [22],
+    "AllowedUdpPorts": [],
+    "InputPolicy": "drop",
+    "AllowLoopback": true,
+    "AllowEstablished": true,
+    "AllowIcmp": true,
+    "AllowDhcp": true,
+    "AllowContainerInterfaces": true,
+    "ContainerInterfaceNames": ["docker0", "br-*"],
+    "SshRateLimitPerMinute": 15,
+    "SshRateLimitBurst": 10,
+    "LogDropped": true,
+    "LogPrefix": "nft-fw-drop: ",
+    "LogRatePerMinute": 5,
+    "ProtectSshPort": true,
+    "RollbackGuardSeconds": 180,
+    "TouchForwardChain": false
+  },
+
+  "Fail2ban": {
+    "Enabled": true,
+    "Install": true,
+    "JailDropInPath": "/etc/fail2ban/jail.d/linuxconfigurator.local",
+    "Backend": "auto",
+    "DefaultBanTime": "1h",
+    "DefaultFindTime": "10m",
+    "DefaultMaxRetry": 3,
+    "IgnoreIp": ["127.0.0.1/8", "::1"],
+    "Jails": {
+      "sshd": {
+        "Enabled": true,
+        "Mode": "aggressive",
+        "MaxRetry": 3,
+        "FindTime": "10m",
+        "BanTime": "6h"
+      },
+      "recidive": {
+        "Enabled": true,
+        "LogPath": "/var/log/fail2ban.log",
+        "MaxRetry": 3,
+        "FindTime": "1d",
+        "BanTime": "7d"
+      }
+    }
+  },
+
+  "Updates": {
+    "Enabled": true,
+    "ConfigureUnattendedUpgrades": true,
+    "UpdatePackageListsDaily": true,
+    "AutocleanIntervalDays": 7,
+    "RemoveUnusedDependencies": true,
+    "AutomaticReboot": true,
+    "AutomaticRebootTime": "04:30",
+    "SyslogEnable": true,
+    "AllowedOrigins": [
+      "${distro_id}:${distro_codename}",
+      "${distro_id}:${distro_codename}-security",
+      "${distro_id}ESMApps:${distro_codename}-apps-security",
+      "${distro_id}ESM:${distro_codename}-infra-security",
+      "${distro_id}:${distro_codename}-updates"
+    ],
+    "NeedrestartMode": "a",
+    "UpgradeNow": false,
+    "PurgeOldKernels": true
+  },
+
+  "Journald": {
+    "Enabled": true,
+    "DropInPath": "/etc/systemd/journald.conf.d/99-linuxconfigurator.conf",
+    "SystemMaxUse": "400M",
+    "SystemMaxFileSize": "50M",
+    "RuntimeMaxUse": "64M",
+    "MaxRetentionSec": "14day",
+    "Compress": true,
+    "ForwardToSyslog": false
+  },
+
+  "Logrotate": {
+    "Enabled": true,
+    "ConfigPath": "/etc/logrotate.d/linuxconfigurator",
+    "Rules": [
+      {
+        "Path": "/var/log/linuxconfigurator/*.log",
+        "Rotate": 14,
+        "MaxSize": "100M",
+        "Compress": true,
+        "DelayCompress": true,
+        "MissingOk": true,
+        "NotIfEmpty": true,
+        "CopyTruncate": true
+      }
+    ]
+  },
+
+  "Docker": {
+    "Enabled": false,
+    "Install": false,
+    "DaemonJsonPath": "/etc/docker/daemon.json",
+    "LogDriver": "json-file",
+    "LogMaxSize": "50m",
+    "LogMaxFile": 3,
+    "LogCompress": true,
+    "UserlandProxy": false,
+    "DefaultNofile": 65536,
+    "InstallComposePlugin": true,
+    "RestartAfterConfigure": true,
+    "AdminGroupAccess": false
+  },
+
+  "Motd": {
+    "Enabled": true,
+    "Path": "/etc/update-motd.d/99-linuxconfigurator",
+    "ShowKernel": true,
+    "ShowMemory": true,
+    "ShowDisk": true,
+    "ShowFailedUnits": true,
+    "ShowRebootPending": true,
+    "CustomText": ""
+  },
+
+  "Cleanup": {
+    "Enabled": true,
+    "Autoremove": true,
+    "AptClean": true,
+    "PurgeOldKernels": true,
+    "KeepKernels": 2,
+    "JournalVacuumSize": "400M",
+    "RemoveTempFiles": false
+  },
+
+  "Report": {
+    "Enabled": true,
+    "PrintToConsole": true,
+    "FilePath": "",
+    "IncludeFailedUnits": true,
+    "IncludeOpenPorts": true,
+    "IncludeRebootHint": true
+  }
+}
