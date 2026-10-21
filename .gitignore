@@ -1,0 +1,29 @@
+# Артефакты прогона
+*.log
+/testmode-report.json
+/LCFG-TestMode-*/
+
+# Локальные копии конфигурации с настоящими данными: в них попадают имена хостов,
+# ключи и адреса, которые не должны оказываться в истории git.
+config/*.local.json
+config/config.local.json
+.env
+.env.*
+
+# Временные файлы редакторов
+*.swp
+*.swo
+*~
+\#*\#
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Локальная копия bats (когда он ставится не из пакета, а клоном в tests/bats)
+tests/bats/
+
+# ОС
+.DS_Store
+Thumbs.db

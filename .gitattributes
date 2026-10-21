@@ -1,0 +1,28 @@
+# Окончания строк и кодировки.
+#
+# В отличие от WindowsConfigurator, здесь всё в LF: bash на Linux не переносит CRLF -
+# строка "#!/usr/bin/env bash\r" приводит к ошибке
+# "bad interpreter: /usr/bin/env bash^M: no such file or directory", а "\r" в конце
+# значения переменной незаметно ломает сравнения строк.
+* text=auto
+
+# Исполняемые скрипты и тесты
+*.sh   text eol=lf
+*.bats text eol=lf
+*.bash text eol=lf
+
+# Данные, документация и конфигурация CI
+*.json text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.jq   text eol=lf
+*.nft  text eol=lf
+
+# Лицензия (файл без расширения)
+LICENSE text eol=lf
+
+# Явно задаём режим исполняемости для точки входа и обёртки тестов, чтобы клон
+# на чистой машине не требовал ручного chmod +x.
+/configure-linux.sh text eol=lf
+/tests/run-tests.sh text eol=lf
