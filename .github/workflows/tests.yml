@@ -58,7 +58,30 @@ jobs:
         # сгенерированные конфиги через настоящие валидаторы, а `nft -c` требует
         # CAP_NET_ADMIN. Сам прогон безопасен — все тесты идут в --test-mode,
         # что отдельно проверяется набором testmode-isolation и шагом ниже.
-        run: sudo -E ./tests/run-tests.sh --tap
+        #
+        # Провалившиеся тесты публикуются аннотациями (::error::), потому что лог
+        # джоба доступен только по токеному, а аннотации публичного репозитория
+        # читаются через API без аутентификации. Без этого diagnosing сводится к
+        # угадыванию по имени шага.
+        run: |
+          set +e
+          sudo -E ./tests/run-tests.sh --tap 2>&1 | tee /tmp/bats.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "::group::Диагностика окружения"
+            echo "whoami=$(whoami) HOME=$HOME TMPDIR=${TMPDIR:-unset}"
+            echo "bats=$(bats --version) shellcheck=$(shellcheck --version | awk -F': ' '/^version:/{print $2}')"
+            echo "systemd=$([ -d /run/systemd/system ] && echo yes || echo no)"
+            for t in nft sshd visudo logrotate fail2ban-client jq docker systemctl; do
+              printf '  %-18s %s\n' "$t" "$(command -v $t || echo ОТСУТСТВУЕТ)"
+            done
+            echo "::endgroup::"
+            grep -B1 -A10 '^not ok' /tmp/bats.log | head -120 | while IFS= read -r line; do
+              printf '::error::%s\n' "${line#\# }"
+            done
+          fi
+          exit "$rc"
 
       - name: Прогон всех шагов в тестовом режиме
         run: |
