@@ -112,6 +112,11 @@ setup() {
 
     run nft -c -f "$tmp/nftables.conf"
     rm -rf "$tmp"
+    # nft -c открывает netlink-сокет и требует CAP_NET_ADMIN: без прав проверка
+    # невозможна в принципе, и это не ошибка сгенерированных правил.
+    if grep -qiE 'operation not permitted|permission denied' <<< "$output"; then
+        skip "nft -c требует CAP_NET_ADMIN"
+    fi
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
@@ -130,6 +135,12 @@ setup() {
 @test "sshd drop-in проходит реальную проверку sshd -t" {
     command -v sshd >/dev/null || skip "sshd не установлен"
     run sshd -t -f "$LCFG_SB/etc/ssh/sshd_config.d/00-linuxconfigurator.conf"
+    # На раннере без сгенерированных хост-ключей sshd -t падает не из-за нашего
+    # drop-in, а из-за их отсутствия. Это не дефект конфига, поэтому - skip,
+    # а не провал; количество пропусков видно в сводке run-tests.sh.
+    if grep -q 'Could not load host key' <<< "$output"; then
+        skip "нет хост-ключей sshd"
+    fi
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 

@@ -20,6 +20,17 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq jq shellcheck bats
 
+      - name: Установка пакетов, которые настраивает конфигуратор
+        # На чистом раннере нет sshd, nft, logrotate и fail2ban. Без них шаги ssh
+        # и firewall завершаются как Skipped, и тесты содержимого (generated-content)
+        # проверяли бы пустую песочницу, то есть зелёный CI ничего не доказывал бы.
+        run: |
+          sudo apt-get install -y -qq nftables openssh-server openssh-client \
+               logrotate fail2ban
+          # sshd -t требует наличия хост-ключей; пакет их генерирует, но на
+          # раннере systemd не запускает sshd, поэтому проверяем явно.
+          test -f /etc/ssh/ssh_host_ed25519_key || sudo ssh-keygen -A
+
       - name: Версии инструментов
         run: |
           bash --version | head -1
@@ -42,18 +53,22 @@ jobs:
       - name: Валидация config.json по схеме
         run: ./configure-linux.sh --validate-config
 
-      - name: Тесты (bats, TAP-формат)
-        run: ./tests/run-tests.sh --tap
+      - name: Тесты (bats, TAP-формат, от root)
+        # От root, а не от пользователя runner: тесты generated-content прогоняют
+        # сгенерированные конфиги через настоящие валидаторы, а `nft -c` требует
+        # CAP_NET_ADMIN. Сам прогон безопасен — все тесты идут в --test-mode,
+        # что отдельно проверяется набором testmode-isolation и шагом ниже.
+        run: sudo -E ./tests/run-tests.sh --tap
 
       - name: Прогон всех шагов в тестовом режиме
-        # Тестовый режим не требует root и ничего не меняет: на раннере прогон
-        # проходит от обычного пользователя.
         run: |
           jq '.Hostname.Name = "ci-runner"' config/config.json > /tmp/ci.json
-          ./configure-linux.sh --test-mode --run-all --config /tmp/ci.json
+          sudo -E ./configure-linux.sh --test-mode --run-all --config /tmp/ci.json
 
       - name: Проверка, что тестовый режим не тронул раннер
         run: |
+          # /etc/nftables.conf на раннере существует (его ставит пакет nftables),
+          # поэтому проверяется не наличие файла, а появление в нём НАШЕЙ таблицы.
           if [ -e /etc/nftables.conf ] && grep -q 'inet fw' /etc/nftables.conf; then
             echo "::error::тестовый режим изменил /etc/nftables.conf раннера"; exit 1
           fi
