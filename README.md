@@ -1,53 +1,53 @@
 # LinuxConfigurator
 
-Однократный прогон, воспроизводимая базовая настройка Linux-сервера: те действия,
-которые выполняются на **каждой** машине независимо от того, что на ней будет
-работать — Java-сервис, база данных или прокси.
+One run, reproducible baseline setup for a Linux server: the steps every machine
+needs no matter what ends up running on it, a Java service, a database, a proxy.
 
-Всё описывается одним JSON-файлом, проверяется по схеме до внесения изменений
-и применяется идемпотентно. Любой прогон можно предварительно выполнить в
-тестовом режиме, который проходит всю логику, но не трогает систему.
+A single JSON file describes the setup. It is checked against a schema before
+anything on disk changes, and applied idempotently. Any run can be previewed in
+test mode first: the full step logic executes, the system stays untouched.
 
-Прямой аналог [WindowsConfigurator](https://github.com/KirillGrachev/WindowsConfigurator):
-та же архитектура — тонкая точка входа, реестр шагов, конфигурация со схемой,
-`-TestMode`, единый результат шага, коды возврата `0/1/2`.
+Direct counterpart of [WindowsConfigurator](https://github.com/KirillGrachev/WindowsConfigurator):
+same architecture, thin entry point, step registry, schema-backed configuration,
+`-TestMode`, one result type per step, exit codes `0/1/2`.
 
 ---
 
-## Зачем
+## Why
 
-Ручная настройка сервера по памяти плохо воспроизводима и ломается в трёх местах:
+Setting up a server by hand from memory does not reproduce well, and it tends to
+break in the same places:
 
-| Что происходит при ручной настройке | Чем это заканчивается |
+| What hand setup does | How it ends |
 |---|---|
-| swap не создан, потому что «и так хватит» | Первый пик нагрузки — OOM-killer убивает самый большой процесс (обычно JVM или БД), а не виновника нехватки памяти |
-| sshd правится в `sshd_config`, а облачный образ содержит `sshd_config.d/50-cloud-init.conf` с `PasswordAuthentication yes` | Вход по паролю продолжает работать, и весь hardening бессмыслен |
-| `/etc/nftables.conf` из пакета включается как есть | Он начинается с `flush ruleset` и сносит таблицы Docker и fail2ban: контейнеры теряют сеть, баны перестают работать |
-| `sysctl --system` одним вызовом | Один отсутствующий в этом ядре ключ роняет применение всех остальных |
-| needrestart не переведён в автоматический режим | `apt` при обновлении библиотек задаёт интерактивный вопрос, и автоматический прогон виснет навсегда |
-| journald не ограничен | Журнал растёт до 10% файловой системы; на диске 40 ГБ это 4 ГБ, и место заканчивается переходом ФС в read-only |
-| `unattended-upgrades` установлен, но не настроен | Обновления безопасности не ставятся никогда: пакет есть, таймеры есть, periodic-конфигурация пустая |
+| No swap, because "memory looks fine" | First load spike: the OOM killer picks the largest process (usually the JVM or the database), not the one that caused the shortage |
+| sshd edited in `sshd_config` while the cloud image ships `sshd_config.d/50-cloud-init.conf` with `PasswordAuthentication yes` | Password login keeps working and the hardening is worth nothing |
+| The packaged `/etc/nftables.conf` enabled as is | It starts with `flush ruleset` and drops the Docker and fail2ban tables: containers lose network, bans stop applying |
+| `sysctl --system` in a single call | One key this kernel does not have stops every other key from applying |
+| needrestart left in interactive mode | `apt` asks a question mid-upgrade when libraries change, and an unattended run hangs forever |
+| journald left unlimited | The journal grows to 10% of the filesystem; on a 40 GB disk that is 4 GB, and the disk ends read-only |
+| `unattended-upgrades` installed but not configured | Security updates never install: the package is there, the timers are there, the periodic config is empty |
 
-Конфигуратор делает эти вещи одинаково каждый раз, а решения, которые легко
-принять неправильно, закреплены тестами.
+The configurator does these the same way every time, and the decisions that are
+easy to get wrong are pinned down by tests.
 
 ---
 
-## Требования
+## Requirements
 
-- bash **5.0+** (нужны `declare -A`, `${var,,}` и `EPOCHREALTIME`);
-- **jq** — единственная жёсткая зависимость: через него читаются и конфигурация, и схема;
-- root или `sudo` (кроме `--test-mode` и `--validate-config`, которые работают от любого пользователя);
+- bash **5.0+** (`declare -A`, `${var,,}`, `EPOCHREALTIME`);
+- **jq**, the only hard dependency: it reads both the configuration and the schema;
+- root or `sudo`, except `--test-mode` and `--validate-config`, which run as any user;
 - Debian 11/12, Ubuntu 20.04/22.04/24.04, RHEL/Rocky/Alma 8/9.
 
-Шаги, специфичные для семейства дистрибутива, на чужом семействе пропускаются
-со статусом `[SKIP]`, а не падают: прогон на mixed-парке не должен требовать
-отдельной конфигурации на каждое семейство.
+Steps specific to one distribution family report `[SKIP]` on another family
+instead of failing: a run across a mixed fleet should not need a separate config
+per family.
 
-Опционально, для соответствующих шагов: `nft`, `sshd`, `visudo`, `fail2ban`,
+Optional, for the steps that use them: `nft`, `sshd`, `visudo`, `fail2ban`,
 `logrotate`, `ssh-keygen`, `docker`.
 
-Проверить готовность машины:
+Check that the machine is ready:
 
 ```bash
 ./configure-linux.sh --validate-config
@@ -55,287 +55,287 @@
 
 ---
 
-## Быстрый старт
+## Quick start
 
 ```bash
 git clone https://github.com/KirillGrachev/LinuxConfigurator.git
 cd LinuxConfigurator
 
-# 1. Указать имя машины и вложить свой публичный SSH-ключ.
-#    Без ключа шаг ssh откажется отключать вход по паролю — это защита от локаута.
+# 1. Set the hostname and pass your public SSH key.
+#    Without a key the ssh step refuses to disable password login: that is the lockout guard.
 jq '.Hostname.Name = "my-server"' config/config.json > /tmp/my.json
 export LCFG_ADMIN_AUTHORIZED_KEYS="$(cat ~/.ssh/id_ed25519.pub)"
 
-# 2. Прогнать в тестовом режиме: вся логика выполняется, система не меняется.
+# 2. Run in test mode: all logic executes, nothing on the system changes.
 ./configure-linux.sh --test-mode --run-all --config /tmp/my.json
 
-# 3. Посмотреть, какие именно команды будут выполнены.
+# 3. Read back the exact commands it would have run.
 less /tmp/LCFG-TestMode-*/journal.tsv
 
-# 4. Применить по-настоящему.
+# 4. Apply for real.
 sudo -E ./configure-linux.sh --run-all --config /tmp/my.json
 ```
 
-`sudo -E` сохраняет переменные окружения, в том числе `LCFG_*` с секретами.
-Без `-E` они не дойдут до конфигуратора.
+`sudo -E` keeps the environment, including the `LCFG_*` variables that carry
+secrets. Without `-E` they never reach the configurator.
 
 ---
 
-## Безопасность
+## Safety
 
-### Тестовый режим (`--test-mode`)
+### Test mode (`--test-mode`)
 
-Полный прогон логики с симуляцией всех побочных эффектов:
+The whole step logic runs with every side effect simulated:
 
-- **команды не исполняются** — точная командная строка уходит в `journal.tsv`,
-  код возврата и вывод берутся из фикстур (по умолчанию `0` и пусто);
-- **файлы пишутся в песочницу** `/tmp/LCFG-TestMode-*`, повторяя абсолютный путь
-  (`etc/ssh/sshd_config.d/...`);
-- **чтение остаётся настоящим** — решения принимаются по реальному состоянию
-  машины, иначе тест не проверял бы ничего;
-- по итогам создаётся **`testmode-report.json`** со счётчиками по категориям
-  и полным журналом операций.
+- **commands are not executed**: the exact command line goes to `journal.tsv`,
+  exit codes and output come from fixtures (`0` and empty by default);
+- **files are written to a sandbox** at `/tmp/LCFG-TestMode-*`, mirroring the
+  absolute path (`etc/ssh/sshd_config.d/...`);
+- **reads stay real**: decisions are made from the actual state of the machine,
+  otherwise the test would prove nothing;
+- the run ends with **`testmode-report.json`**: counters per category plus the
+  full operation journal.
 
-Права root не требуются. Тестовый режим реализован в одном месте — обёртках
-`run_cmd` и `fs_*`, поэтому в шагах нет ни одного ветвления «если тест — не
-писать»: логика шага буквально одна и та же в обоих режимах.
+No root required. Test mode lives in one place, the `run_cmd` and `fs_*`
+wrappers, so steps contain no "if test mode, skip writing" branches: the step
+logic is literally the same in both modes.
 
 ```bash
 ./configure-linux.sh --test-mode --run-all
 jq '.counters' /tmp/LCFG-TestMode-*/testmode-report.json
 ```
 
-Изоляция тестового режима сама покрыта тестами (`tests/testmode-isolation.bats`):
-проверяются отпечатки критичных конфигов до и после, отсутствие новых файлов
-по известным путям и отсутствие взведённых systemd-таймеров.
+The isolation promise has its own tests (`tests/testmode-isolation.bats`):
+fingerprints of critical configs before and after, no new files at known paths,
+no armed systemd timers.
 
 ### `--what-if`
 
-Показать запланированные действия и не выполнять ничего. В отличие от
-`--test-mode` не ведёт журнал и не создаёт песочницу — это быстрый просмотр
-плана, а не прогон логики.
+Prints the planned actions and executes nothing. Unlike `--test-mode` it keeps
+no journal and builds no sandbox: a quick look at the plan, not a logic run.
 
-### Автоматический откат
+### Automatic rollback
 
-Шаги `ssh` и `firewall` — единственные, способные отрезать доступ к машине без
-возможности починить это по сети. В них встроена страховка:
+The `ssh` and `firewall` steps are the only ones that can cut access to the
+machine with no way to fix it over the network. Both carry a guard:
 
-1. текущая конфигурация сохраняется в каталог бэкапов;
-2. **взводится таймер** через `systemd-run --on-active=N`, который восстанавливает
-   сохранённую конфигурацию и перезагружает сервис;
-3. применяются новые настройки;
-4. выполняется проверка: `sshd -t` / `nft -c -f`, затем reload и **новое
-   подключение на 127.0.0.1** (для ssh) или проверка загруженности таблицы и
-   доступности порта sshd через loopback (для firewall);
-5. таймер снимается только после успешной проверки.
+1. current configuration is copied to the backup directory;
+2. **a timer is armed** with `systemd-run --on-active=N` to restore the saved
+   configuration and reload the service;
+3. the new settings are applied;
+4. verification runs: `sshd -t` / `nft -c -f`, then reload and **a fresh
+   connection to 127.0.0.1** (ssh), or a table-loaded check plus sshd port
+   reachability over loopback (firewall);
+5. the timer is disarmed only after verification passes.
 
-Используется именно `systemd-run`, а не `trap`: trap не сработает, если машину
-убьёт OOM, оборвётся сеть или процесс упадёт вместе с ssh-сессией.
+`systemd-run`, not `trap`: a trap never fires if the OOM killer takes the
+machine, the network drops, or the process dies with the ssh session.
 
-Длительность задаётся `Ssh.RollbackGuardSeconds` (по умолчанию 300) и
-`Firewall.RollbackGuardSeconds` (по умолчанию 180). Значение `0` отключает
-страховку — этого не стоит делать на удалённой машине.
+Durations come from `Ssh.RollbackGuardSeconds` (default 300) and
+`Firewall.RollbackGuardSeconds` (default 180). `0` disables the guard; do not do
+that on a remote machine.
 
-### Защита от самоблокировки на уровне конфигурации
+### Lockout protection at the configuration level
 
-- `firewall` отказывается применять набор портов, в котором нет порта sshd
+- `firewall` refuses to apply a port set that lacks the sshd port
   (`Firewall.ProtectSshPort`);
-- `ssh` отказывается отключать вход по паролю, если ни у одного пользователя
-  нет `authorized_keys`;
-- порядок шагов `users → ssh → firewall` закреплён тестом.
+- `ssh` refuses to disable password login while no user has `authorized_keys`;
+- the step order `users -> ssh -> firewall` is pinned by a test.
 
 ---
 
-## Шаги
+## Steps
 
-| Шаг | Риск | Что делает |
+| Step | Risk | What it does |
 |---|---|---|
-| `hostname` | Low | Имя машины и запись `127.0.1.1` в `/etc/hosts` |
-| `time` | Low | Часовой пояс, локаль, NTP (chrony с откатом на `systemd-timesyncd`) |
-| `swap` | Medium | Файл подкачки, запись в `fstab`, `vm.swappiness` |
-| `sysctl` | Medium | Drop-in в `/etc/sysctl.d/` и подключение каждого ключа отдельно |
-| `limits` | Low | `DefaultLimitNOFILE` для systemd **и** `limits.d` для PAM |
-| `packages` | Medium | Установка и удаление пакетов по спискам семейства ОС |
-| `users` | **High** | Администратор, группы, sudoers, SSH-ключи |
-| `ssh` | **High** | Hardening sshd через drop-in, нейтрализация cloud-init |
-| `firewall` | **High** | Таблица nftables с `policy drop` на INPUT |
-| `fail2ban` | Medium | Jail-конфигурация drop-in'ом |
-| `updates` | Medium | `unattended-upgrades`, needrestart, старые ядра |
-| `logging` | Low | Ограничение journald и правила logrotate |
-| `docker` | Medium | Установка (опционально), `daemon.json`, ротация логов |
-| `motd` | Low | Приветственное сообщение при входе |
-| `cleanup` | Medium | autoremove, кэш пакетов, вакуум журнала, контроль `/boot` |
-| `report` | Low | Сводка фактического состояния машины |
+| `hostname` | Low | Machine name and the `127.0.1.1` entry in `/etc/hosts` |
+| `time` | Low | Timezone, locale, NTP (chrony with fallback to `systemd-timesyncd`) |
+| `swap` | Medium | Swap file, `fstab` entry, `vm.swappiness` |
+| `sysctl` | Medium | Drop-in under `/etc/sysctl.d/`, each key applied individually |
+| `limits` | Low | `DefaultLimitNOFILE` for systemd **and** `limits.d` for PAM |
+| `packages` | Medium | Install and remove packages from per-family lists |
+| `users` | **High** | Admin account, groups, sudoers, SSH keys |
+| `ssh` | **High** | sshd hardening via drop-in, cloud-init neutralized |
+| `firewall` | **High** | nftables table with `policy drop` on INPUT |
+| `fail2ban` | Medium | Jail configuration as a drop-in |
+| `updates` | Medium | `unattended-upgrades`, needrestart, old kernels |
+| `logging` | Low | journald limits and logrotate rules |
+| `docker` | Medium | Install (optional), `daemon.json`, container log rotation |
+| `motd` | Low | Login banner |
+| `cleanup` | Medium | autoremove, package cache, journal vacuum, `/boot` check |
+| `report` | Low | Summary of the actual machine state |
 
-Уровень риска определяет, запрашивается ли подтверждение: при
-`General.ConfirmImpact` выше `Low` шаги уровня `High` спрашивают подтверждение
-(если stdin — терминал).
+Risk level drives confirmation prompts: with `General.ConfirmImpact` above
+`Low`, `High` steps ask for confirmation when stdin is a terminal.
 
-### Порядок и почему именно такой
+### Order, and why
 
-Порядок в реестре — не алфавитный, он закреплён тестом
-`tests/project-structure.bats`:
+The registry order is not alphabetical and a test
+(`tests/project-structure.bats`) keeps it that way:
 
 ```
-hostname, time     → от них зависят имена в логах и корректность меток времени
-                     всех последующих записей; расхождение часов ломает
-                     TLS-рукопожатия («сертификат ещё не действителен»)
-swap, sysctl       → до пакетов: установка пакетов на машине без подкачки
-                     при 2 GiB RAM может убить процесс apt средствами OOM-killer
-users              → до ssh: ssh отключает вход по паролю, и без установленного
-                     ключа машина теряет единственный канал управления
-ssh                → до firewall: policy drop включается только после того,
-                     как доступ по ключу проверен новым подключением
-cleanup, report    → в конце: autoremove до установки удалил бы только что
-                     поставленные зависимости
+hostname, time     -> log names and timestamps of everything below depend on
+                      them; clock skew breaks TLS handshakes ("certificate not
+                      yet valid")
+swap, sysctl       -> before packages: installing packages on a 2 GiB machine
+                      without swap can get apt killed by the OOM killer
+users              -> before ssh: ssh disables password login, and without an
+                      installed key the machine loses its only control channel
+ssh                -> before firewall: policy drop switches on only after key
+                      access is proven by a fresh connection
+cleanup, report    -> last: autoremove before install would delete the
+                      dependencies just placed
 ```
 
-`General.DefaultSteps` в конфигурации обязан соответствовать этому порядку —
-это тоже проверяется тестом.
+`General.DefaultSteps` in the configuration must match this order; a test
+checks that too.
 
-### Алиасы
+### Aliases
 
-В конфигурациях и в привычках имена шагов расходятся, поэтому поддерживаются
-алиасы: `sshd`→`ssh`, `fw`/`nftables`→`firewall`, `ntp`/`timezone`→`time`,
-`f2b`→`fail2ban`, `journald`/`logs`→`logging`, `apt`/`pkgs`→`packages` и др.
-Полный список — `step_aliases` в `lib/steps/registry.sh`.
+Configs and habits disagree about step names, so aliases exist: `sshd`->`ssh`,
+`fw`/`nftables`->`firewall`, `ntp`/`timezone`->`time`, `f2b`->`fail2ban`,
+`journald`/`logs`->`logging`, `apt`/`pkgs`->`packages`, and a few more. The full
+list is `step_aliases` in `lib/steps/registry.sh`.
 
-Неизвестное имя — ошибка запуска с кодом `2`, а не тихий пропуск: опечатка
-должна быть видна сразу, иначе машина останется ненастроенной, а отчёт зелёным.
+An unknown name is a startup error with code `2`, not a silent skip: a typo
+should surface immediately, otherwise the machine stays unconfigured while the
+report looks green.
 
 ---
 
-## Режимы запуска
+## Run modes
 
 ```bash
-./configure-linux.sh --run-all                        # шаги из General.DefaultSteps
-./configure-linux.sh --run-steps ssh,firewall,fail2ban # только указанные
-./configure-linux.sh --interactive                    # меню выбора шагов
-./configure-linux.sh --validate-config                # только проверка по схеме
-./configure-linux.sh --test-mode --run-all            # симуляция всего
-./configure-linux.sh --what-if --run-steps packages   # только план
-./configure-linux.sh --run-all --yes --verbose        # без подтверждений, Debug в журнал
+./configure-linux.sh --run-all                        # steps from General.DefaultSteps
+./configure-linux.sh --run-steps ssh,firewall,fail2ban # only the listed steps
+./configure-linux.sh --interactive                    # step selection menu
+./configure-linux.sh --validate-config                # schema check only
+./configure-linux.sh --test-mode --run-all            # simulate everything
+./configure-linux.sh --what-if --run-steps packages   # plan only
+./configure-linux.sh --run-all --yes --verbose        # no prompts, Debug to the log
 ```
 
-| Флаг | Назначение |
+| Flag | Purpose |
 |---|---|
-| `--run-all` | выполнить шаги из `General.DefaultSteps` |
-| `--run-steps LIST` | выполнить только перечисленные (через запятую, алиасы допустимы) |
-| `--interactive` | интерактивное меню |
-| `--config PATH` | путь к конфигурации (по умолчанию `config/config.json`) |
-| `--validate-config` | проверить конфигурацию по схеме и выйти |
-| `--log PATH` | переопределить `Logging.FilePath` |
-| `--user NAME` | целевой пользователь для шагов, работающих с профилем |
-| `--test-mode` | симулировать все побочные эффекты |
-| `--what-if` | только показать план |
-| `--yes`, `-y` | не спрашивать подтверждений |
-| `--verbose`, `-v` | уровень журнала Debug |
+| `--run-all` | run the steps from `General.DefaultSteps` |
+| `--run-steps LIST` | run only the listed steps (comma separated, aliases allowed) |
+| `--interactive` | interactive menu |
+| `--config PATH` | configuration path (default `config/config.json`) |
+| `--validate-config` | validate the configuration against the schema and exit |
+| `--log PATH` | override `Logging.FilePath` |
+| `--user NAME` | target user for profile-aware steps |
+| `--test-mode` | simulate all side effects |
+| `--what-if` | print the plan only |
+| `--yes`, `-y` | skip confirmation prompts |
+| `--verbose`, `-v` | Debug log level |
 
-### Коды возврата
+### Exit codes
 
-| Код | Значение |
+| Code | Meaning |
 |---|---|
-| `0` | все шаги выполнены успешно (или запрошена только проверка конфигурации) |
-| `1` | часть шагов завершилась ошибкой — см. сводку и журнал |
-| `2` | критическая ошибка запуска: конфигурация не прошла валидацию, нет прав root, неизвестный шаг, не найдена обязательная утилита |
+| `0` | every step succeeded (or only a config validation was requested) |
+| `1` | some steps failed: see the summary and the log |
+| `2` | startup error: configuration failed validation, no root, unknown step, required tool missing |
 
-Это контракт для автоматизации. Коды `1` и `2` различаются намеренно: `1`
-означает «машина настроена частично», `2` — «настройка не начиналась».
+This is a contract for automation. `1` and `2` differ on purpose: `1` means
+"the machine is partially configured", `2` means "configuration never started".
 
 ---
 
-## Конфигурация
+## Configuration
 
-Единственный файл — `config/config.json`, проверяется по `config/config.schema.json`
-**до внесения каких-либо изменений**. Валидатор написан на jq и поддерживает
-подмножество JSON Schema: `type`, `enum`, `minimum`/`maximum`, `pattern`,
-`minLength`, `required`, `properties`, `items`.
+One file, `config/config.json`, checked against `config/config.schema.json`
+**before anything changes**. The validator is jq and covers a JSON Schema
+subset: `type`, `enum`, `minimum`/`maximum`, `pattern`, `minLength`, `required`,
+`properties`, `items`.
 
-Сообщения об ошибках содержат полный путь к полю:
+Error messages carry the full field path:
 
 ```
-$.Ssh.MaxAuthTries: значение 99 больше допустимого максимума 10
-$.Firewall.AllowedTcpPorts[1]: значение 99999 больше допустимого максимума 65535
-$.Logrotate.Rules[0]: отсутствует обязательное поле "Path"
-$.Time.Ntp.Preferred: значение "ntp4" не входит в список допустимых ["chrony","systemd-timesyncd","ntpd"]
+$.Ssh.MaxAuthTries: value 99 exceeds the allowed maximum of 10
+$.Firewall.AllowedTcpPorts[1]: value 99999 exceeds the allowed maximum of 65535
+$.Logrotate.Rules[0]: required field "Path" is missing
+$.Time.Ntp.Preferred: value "ntp4" is not in the allowed list ["chrony","systemd-timesyncd","ntpd"]
 ```
 
-Локальную копию с настоящими данными стоит держать отдельно —
-`config/*.local.json` внесён в `.gitignore`:
+Keep the copy with real values elsewhere: `config/*.local.json` is in
+`.gitignore`:
 
 ```bash
 jq '.Hostname.Name = "prod-01"' config/config.json > config/config.local.json
 ```
 
-### Секции
+### Sections
 
-| Секция | Назначение |
+| Section | Purpose |
 |---|---|
-| `Meta` | Версия конфига, `IsTestData`, окружение, ответственный |
+| `Meta` | Config version, `IsTestData`, environment, owner |
 | `General` | `DefaultSteps`, `StopOnFirstFailure`, `StepDelaySeconds`, `ConfirmImpact` |
-| `Logging` | Уровень, путь журнала, `RetentionDays` |
-| `Backup` | Каталог резервных копий изменяемых файлов |
-| `Secrets` | Провайдер, префикс переменных окружения, `BlockTestDataSecrets` |
-| `Hostname` | Имя машины, правка `/etc/hosts`, старое имя как алиас |
-| `Time` | Часовой пояс, локаль, NTP-демон и запасной вариант |
-| `Swap` | Размер, путь, `swappiness`, минимальный запас диска |
-| `Sysctl` | Путь drop-in и словарь параметров ядра |
-| `Limits` | `DefaultLimitNOFILE`/`TasksMax` для systemd и `limits.d` для PAM |
-| `Packages` | Списки `Install`/`Remove` по семействам ОС |
-| `Users` | Администратор, группы, sudoers, имена секретов с ключами |
-| `Ssh` | Все директивы hardening, пути drop-in, параметры отката |
-| `Firewall` | Имя таблицы, открытые порты, rate limit, параметры отката |
-| `Fail2ban` | Backend, значения по умолчанию, jails |
-| `Updates` | Origins, автоперезагрузка и её время, needrestart |
-| `Journald` | Ограничения объёма и срока хранения |
-| `Logrotate` | Массив правил ротации |
-| `Docker` | Установка, `daemon.json`, ротация логов контейнеров |
-| `Motd` | Какие сведения показывать при входе |
-| `Cleanup` | autoremove, vacuum журнала, контроль `/boot` |
-| `Report` | Печатать ли сводку и куда её сохранять |
+| `Logging` | Level, log path, `RetentionDays` |
+| `Backup` | Directory holding copies of modified files |
+| `Secrets` | Provider, environment variable prefix, `BlockTestDataSecrets` |
+| `Hostname` | Machine name, `/etc/hosts` edit, old name as alias |
+| `Time` | Timezone, locale, NTP daemon and fallback |
+| `Swap` | Size, path, `swappiness`, minimum free disk |
+| `Sysctl` | Drop-in path and the kernel parameter map |
+| `Limits` | `DefaultLimitNOFILE`/`TasksMax` for systemd, `limits.d` for PAM |
+| `Packages` | `Install`/`Remove` lists per OS family |
+| `Users` | Admin account, groups, sudoers, secret names carrying keys |
+| `Ssh` | Hardening directives, drop-in paths, rollback parameters |
+| `Firewall` | Table name, open ports, rate limit, rollback parameters |
+| `Fail2ban` | Backend, defaults, jails |
+| `Updates` | Origins, automatic reboot and its window, needrestart |
+| `Journald` | Size and retention limits |
+| `Logrotate` | Array of rotation rules |
+| `Docker` | Install, `daemon.json`, container log rotation |
+| `Motd` | Which facts to show at login |
+| `Cleanup` | autoremove, journal vacuum, `/boot` check |
+| `Report` | Whether to print the summary and where to save it |
 
-### Секреты
+### Secrets
 
-Секреты **никогда** не хранятся в `config/config.json` — в конфигурации только
-имя, значение берётся из переменной окружения с префиксом
-`Secrets.EnvironmentVariablePrefix` (по умолчанию `LCFG_`):
+Secrets **never** live in `config/config.json`: the configuration holds a name
+only, and the value comes from an environment variable prefixed with
+`Secrets.EnvironmentVariablePrefix` (`LCFG_` by default):
 
 ```bash
 export LCFG_ADMIN_AUTHORIZED_KEYS="$(cat ~/.ssh/id_ed25519.pub)"
 export LCFG_ROOT_AUTHORIZED_KEYS="ssh-ed25519 AAAA... break-glass@company"
 ```
 
-Префикс `LCFG_`, а не `LC_`: `LC_ALL`, `LC_CTYPE` и прочие `LC_*` зарезервированы
-POSIX под локаль, и переменная `LC_PRIVATE_KEY` могла бы сломать кодировки вывода.
+The prefix is `LCFG_`, not `LC_`: POSIX reserves `LC_ALL`, `LC_CTYPE` and the
+rest of `LC_*` for locale, and a variable named `LC_PRIVATE_KEY` could break
+output encoding.
 
-Значением может быть как сам ключ, так и путь к файлу с ключами — разбираются
-обе формы, чтобы не передавать многострочное содержимое через переменную.
+A value may be the key itself or a path to a key file; both forms parse, so
+multiline content never has to travel through a variable.
 
-`Secrets.BlockTestDataSecrets` (по умолчанию `true`) отвергает значения-заглушки
-из примеров: `changeme`, `password`, `qwerty`, `hunter2`, `*@example.*`,
-`*test.local*`. Без этой проверки легко прогнать конфигуратор с демо-конфигом
-и получить боевой сервер с ключом, который лежит в публичном репозитории.
+`Secrets.BlockTestDataSecrets` (`true` by default) rejects placeholder values
+from the examples: `changeme`, `password`, `qwerty`, `hunter2`, `*@example.*`,
+`*test.local*`. Without that check it is easy to run the configurator with the
+demo config and end up with a production server whose only key sits in a public
+repository.
 
-Если ключ не задан и `Users.GenerateKeyIfSecretMissing = true`, пара
-генерируется на машине (ed25519, 100 раундов KDF), приватная половина сохраняется
-в `Users.PrivateKeyOutputPath` с правами `600`. **В консоль и в журнал выводится
-только путь к файлу, не содержимое** — иначе ключ оказался бы в
-`testmode-report.json`, который обычно прикладывают к тикету.
+If no key is set and `Users.GenerateKeyIfSecretMissing = true`, a pair is
+generated on the machine (ed25519, 100 KDF rounds) and the private half is
+stored at `Users.PrivateKeyOutputPath` with mode `600`. **The console and the
+log show the file path only, never the content**: otherwise the key would land
+in `testmode-report.json`, which people attach to tickets.
 
 ---
 
-## Расширение: свой шаг
+## Adding a step
 
-1. Создать `lib/steps/<имя>.sh` с функцией `step_<имя>`:
+1. Create `lib/steps/<name>.sh` with a `step_<name>` function:
 
 ```bash
 #!/usr/bin/env bash
 #
 # SYNOPSIS
-#     Шаг myapp: установка приложения.
+#     Step myapp: install the application.
 #
 # DESCRIPTION
-#     Почему шаг устроен именно так, а не иначе. Здесь же — известные ловушки.
+#     Why the step is shaped this way. Known traps belong here too.
 
 step_myapp() {
     if ! config_section_enabled MyApp; then
@@ -347,14 +347,14 @@ step_myapp() {
     version="$(config_get '.MyApp.Version' '')"
 
     if [[ -z "$version" ]]; then
-        step_failed 'MyApp.Version не задан'
+        step_failed 'MyApp.Version is not set'
         return $?
     fi
 
-    if ! confirm_step_action "/opt/myapp" "Установить версию ${version}" Medium; then
+    if ! confirm_step_action "/opt/myapp" "Install version ${version}" Medium; then
         local rc=$?
         if (( rc == 2 )); then step_skipped '--what-if'; return $?; fi
-        step_skipped 'пользователь отказался'
+        step_skipped 'user declined'
         return $?
     fi
 
@@ -362,58 +362,59 @@ step_myapp() {
     fs_write "/opt/myapp/version" "${version}"$'\n' 644 root:root
     run_cmd systemctl restart myapp
 
-    step_ok "установлена версия ${version}"
+    step_ok "version ${version} installed"
     return $?
 }
 ```
 
-2. Добавить секцию в `config/config.json` и её описание в `config/config.schema.json`.
-3. Зарегистрировать шаг в `step_definitions` (`lib/steps/registry.sh`):
-   имя, функция, описание, требование root, уровень риска.
-4. Прогнать `./tests/run-tests.sh` — тесты структуры проверят, что функция
-   существует, имя зарегистрировано и порядок не нарушен.
+2. Add the section to `config/config.json` and describe it in
+   `config/config.schema.json`.
+3. Register the step in `step_definitions` (`lib/steps/registry.sh`): name,
+   function, description, root requirement, risk level.
+4. Run `./tests/run-tests.sh`: the structure tests check that the function
+   exists, the name is registered and the order is intact.
 
-### Правила, которые стоит соблюдать
+### Rules worth keeping
 
-- **Коды возврата шага:** `0` — Success, `1` — Failed, `3` — Skipped
-  (`step_ok` / `step_failed` / `step_skipped`). Код `2` зарезервирован точкой
-  входа под критические ошибки запуска и шагами не используется.
-- **Внешние команды — только через `run_cmd` / `run_capture` / `run_quiet`.**
-  Прямой вызов `apt-get` из шага не будет симулироваться в тестовом режиме и не
-  попадёт в журнал.
-- **Запись на диск — только через `fs_write` / `fs_append` / `fs_append_unique`.**
-  Иначе файл минует песочницу и тестовый режим перестанет быть безопасным.
-- **Идемпотентность:** повторный прогон не должен ничего менять. Используйте
-  `fs_append_unique` и проверяйте текущее состояние до изменения.
-- `config_get_bool` возвращает **статус**, а не строку. Правильно —
-  `if config_get_bool '.X' true; then ...`, неправильно —
-  `x="$(config_get_bool '.X' true)"` (так всегда получится пустая строка).
-  Это закреплено тестом-линтером.
+- **Step return codes:** `0` Success, `1` Failed, `3` Skipped (`step_ok` /
+  `step_failed` / `step_skipped`). Code `2` belongs to the entry point for
+  critical startup errors; steps never return it.
+- **External commands only through `run_cmd` / `run_capture` / `run_quiet`.**
+  A bare `apt-get` call inside a step is not simulated in test mode and never
+  reaches the journal.
+- **Disk writes only through `fs_write` / `fs_append` / `fs_append_unique`.**
+  Otherwise the file bypasses the sandbox and test mode stops being safe.
+- **Idempotency:** a second run must change nothing. Use `fs_append_unique`
+  and read the current state before modifying it.
+- `config_get_bool` returns a **status**, not a string. Correct:
+  `if config_get_bool '.X' true; then ...`. Wrong:
+  `x="$(config_get_bool '.X' true)"`, which always yields an empty
+  string. A linter test enforces this.
 
 ---
 
-## Тесты
+## Tests
 
 ```bash
-./tests/run-tests.sh                 # все наборы
-./tests/run-tests.sh --list          # список наборов
-./tests/run-tests.sh tests/units.bats # один набор
-./tests/run-tests.sh --tap           # TAP-формат для внешних систем отчётности
+./tests/run-tests.sh                  # all suites
+./tests/run-tests.sh --list           # list suites
+./tests/run-tests.sh tests/units.bats # one suite
+./tests/run-tests.sh --tap            # TAP output for external reporters
 ```
 
-| Набор | Тестов | Что ловит |
+| Suite | Tests | What it catches |
 |---|---|---|
-| `project-structure.bats` | 16 | Рассогласование реестра и функций, алиасы, порядок шагов, shellcheck, мёртвый код, misuse `config_get_bool` |
-| `config-validation.bats` | 22 | Каждый класс ошибки схемы и корректность пути к полю в сообщении |
-| `testmode-isolation.bats` | 11 | Нарушение обещания «тестовый режим ничего не меняет» |
-| `generated-content.bats` | 25 | Свойства генерируемых конфигов + прогон через настоящие `nft -c`, `sshd -t`, `visudo -cf`, `logrotate -d` |
-| `cli-and-exitcodes.bats` | 17 | Коды возврата как контракт, защита от самоблокировки |
-| `units.bats` | 29 | Токены в путях, отсутствие eval, оверлей песочницы, идемпотентность, фикстуры |
+| `project-structure.bats` | 16 | Registry and function drift, aliases, step order, shellcheck, dead code, `config_get_bool` misuse |
+| `config-validation.bats` | 22 | Every schema error class and correct field paths in messages |
+| `testmode-isolation.bats` | 11 | Any break of the "test mode changes nothing" promise |
+| `generated-content.bats` | 25 | Properties of generated configs, plus a run through real `nft -c`, `sshd -t`, `visudo -cf`, `logrotate -d` |
+| `cli-and-exitcodes.bats` | 17 | Exit codes as a contract, lockout protection |
+| `units.bats` | 29 | Path tokens, no eval, sandbox overlay, idempotency, fixtures |
 
-Тесты **не изменяют систему** — все прогоны идут в `--test-mode`, поэтому их
-можно запускать и на боевой машине, и в CI.
+Tests **do not modify the system**: every run happens in `--test-mode`, so they
+are safe on a production machine and in CI.
 
-Установка инструментов:
+Tooling:
 
 ```bash
 sudo apt-get install -y jq shellcheck bats      # Debian/Ubuntu
@@ -422,84 +423,83 @@ sudo dnf install -y jq ShellCheck bats          # RHEL/Fedora
 
 ---
 
-## Откат
+## Rollback
 
-Каждый изменяемый файл копируется в `Backup.DirectoryPath`
-(по умолчанию `/var/backups/linuxconfigurator`) до правки, с меткой времени
-в имени. Шаги `ssh` и `firewall` дополнительно делают снимок всего каталога
-конфигурации перед применением.
+Every modified file is copied to `Backup.DirectoryPath` (default
+`/var/backups/linuxconfigurator`) before the edit, timestamp in the name. The
+`ssh` and `firewall` steps additionally snapshot their whole configuration
+directory before applying.
 
 ```bash
 ls -lt /var/backups/linuxconfigurator/
 
-# Откат настроек sshd
+# Roll back sshd settings
 cp -a /var/backups/linuxconfigurator/sshd-20260101-120000/. /etc/ssh/sshd_config.d/
 rm -f /etc/ssh/sshd_config.d/00-linuxconfigurator.conf
 sudo systemctl reload ssh
 
-# Откат фаервола
+# Roll back the firewall
 cp -a /var/backups/linuxconfigurator/nftables-20260101-120000/nftables.conf /etc/nftables.conf
 sudo nft -f /etc/nftables.conf
 ```
 
-Полный откат шага `users` — удаление sudoers-фрагмента и строк из
-`authorized_keys`; сам пользователь и его домашний каталог не удаляются.
+A full rollback of the `users` step removes the sudoers fragment and the added
+`authorized_keys` lines; the account and its home directory stay.
 
 ---
 
-## Проверено
+## Verified
 
-| Окружение | Результат |
+| Environment | Result |
 |---|---|
-| Ubuntu 24.04.5 LTS, 1 vCPU / 1.9 GiB RAM, Hetzner Cloud (Helsinki) | 16/16 шагов, прогон применён и проверен после перезагрузки |
-| GitHub Actions `ubuntu-latest` | shellcheck + 120 тестов + прогон в тестовом режиме |
+| Ubuntu 24.04.5 LTS, 1 vCPU / 1.9 GiB RAM, Hetzner Cloud (Helsinki) | 16/16 steps, run applied and re-checked after reboot |
+| GitHub Actions `ubuntu-latest` | shellcheck + 120 tests + test-mode run |
 
 ---
 
-## Ограничения и известные особенности
+## Limits and known behaviour
 
-**Docker и фаервол.** Опубликованные порты контейнеров (`docker run -p 8080:8080`)
-идут через DNAT в `PREROUTING` и далее через `FORWARD`, то есть **минуют INPUT**.
-Правила этого конфигуратора их не фильтруют — так же, как их не фильтрует ufw.
-Ограничивать нужно либо публикацией на loopback (`127.0.0.1:8080:8080`) с
-дальнейшим проксированием, либо цепочкой `DOCKER-USER`:
+**Docker and the firewall.** Published container ports
+(`docker run -p 8080:8080`) go through DNAT in `PREROUTING` and then `FORWARD`,
+so they **bypass INPUT**. Rules from this configurator do not filter them,
+exactly like ufw does not. Restrict them either by publishing on loopback
+(`127.0.0.1:8080:8080`) behind a proxy, or in the `DOCKER-USER` chain:
 
 ```bash
 nft insert rule ip filter DOCKER-USER iifname enp1s0 tcp dport 8080 \
     ip saddr != { 1.2.3.4 } counter drop
 ```
 
-Шаг `firewall` намеренно не объявляет цепочку `FORWARD`: политика `drop` в ней
-полностью порвала бы сеть Docker.
+The `firewall` step deliberately never declares a `FORWARD` chain: a `drop`
+policy there would cut Docker networking completely.
 
-**Селекторы `nft`.** Правила пишутся в отдельную таблицу `inet fw`; конфигурация
-не содержит `flush ruleset`, чтобы не затрагивать таблицы Docker (`ip/ip6 nat`,
-`ip/ip6 filter`) и fail2ban (`inet f2b-table`).
+**`nft` selectors.** Rules live in a dedicated `inet fw` table; the
+configuration contains no `flush ruleset`, so Docker tables (`ip/ip6 nat`,
+`ip/ip6 filter`) and fail2ban (`inet f2b-table`) stay untouched.
 
-**`sshd` и порядок drop-in.** sshd применяет **первое** найденное значение
-параметра, а `Include` стоит в начале `sshd_config`. Поэтому наш drop-in называется
-`00-*`, а облачный `50-cloud-init.conf` дополнительно перезаписывается, и
-добавляется `/etc/cloud/cloud.cfg.d/*.cfg` — иначе cloud-init вернёт вход по
-паролю при следующей загрузке.
+**`sshd` and drop-in order.** sshd applies the **first** value it finds for a
+parameter, and `Include` sits at the top of `sshd_config`. Hence the drop-in
+name `00-*`; the cloud `50-cloud-init.conf` is additionally overwritten and an
+`/etc/cloud/cloud.cfg.d/*.cfg` is added, otherwise cloud-init restores password
+login at next boot.
 
-**Группа `docker` эквивалентна root** (монтирование `/host` в контейнер даёт
-полный доступ). `Docker.AdminGroupAccess` по умолчанию `false`, используется
-`sudo docker`.
+**The `docker` group equals root** (mount `/host` into a container and you have
+full access). `Docker.AdminGroupAccess` defaults to `false`; use `sudo docker`.
 
-**Ограничение логов Docker применяется только к новым контейнерам.** Существующие
-сохраняют прежние настройки до пересоздания; шаг предупреждает об этом явно.
+**Docker log limits apply to new containers only.** Existing ones keep their
+settings until recreated; the step warns about it explicitly.
 
-**Перезагрузка.** После обновления ядра шаг `report` сообщает о pending reboot.
-`Updates.AutomaticReboot` включает автоматическую перезагрузку в
-`AutomaticRebootTime` (по умолчанию 04:30) — на машине с длительной
-нагрузкой это стоит отключить и перезагружать вручную.
+**Reboots.** After a kernel update the `report` step flags a pending reboot.
+`Updates.AutomaticReboot` enables automatic reboots at `AutomaticRebootTime`
+(default 04:30); on a machine under long-running load disable it and reboot by
+hand.
 
-**SELinux/AppArmor не настраиваются.** На RHEL-подобных после изменения путей
-или портов может потребоваться `restorecon` / `semanage`; шаг не выполняет их
-автоматически, чтобы не конфликтовать с локальной политикой.
+**SELinux/AppArmor are not configured.** On RHEL-family systems, changed paths
+or ports may need `restorecon` / `semanage`; the step does not run them
+automatically to avoid fighting the local policy.
 
 ---
 
-## Лицензия
+## License
 
-MIT — см. [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
