@@ -40,17 +40,17 @@ step_report() {
     if [[ -n "$path" ]]; then
         path="$(path_expand_tokens "$path")"
         fs_write "$path" "${report}"$'\n' 640 root:root
-        log_info "Сводка сохранена: ${path}"
+        log_info "Summary saved: ${path}"
     fi
 
     local reboot_hint
     reboot_hint="$(sys_reboot_pending)"
     if [[ -n "$reboot_hint" ]]; then
-        step_ok "сводка собрана; ТРЕБУЕТСЯ ПЕРЕЗАГРУЗКА (${reboot_hint})"
+        step_ok "summary collected; REBOOT REQUIRED (${reboot_hint})"
         return $?
     fi
 
-    step_ok 'сводка собрана, перезагрузка не требуется'
+    step_ok 'summary collected, no reboot required'
     return $?
 }
 
@@ -58,16 +58,16 @@ report_collect() {
     local out=''
     local pending
 
-    out+="==================== СОСТОЯНИЕ МАШИНЫ ===================="$'\n'
-    out+="$(printf '  %-16s %s' 'хост:'      "$(sys_hostname)")"$'\n'
-    out+="$(printf '  %-16s %s' 'ОС:'        "$(sys_os_pretty)")"$'\n'
-    out+="$(printf '  %-16s %s' 'ядро:'      "$(sys_kernel)")"$'\n'
-    out+="$(printf '  %-16s %s' 'архитектура:' "$(sys_arch)")"$'\n'
-    out+="$(printf '  %-16s %s' 'виртуализация:' "$(sys_virt)")"$'\n'
+    out+="=========> Machine State <========="$'\n'
+    out+="$(printf '  %-16s %s' 'host:'      "$(sys_hostname)")"$'\n'
+    out+="$(printf '  %-16s %s' 'os:'        "$(sys_os_pretty)")"$'\n'
+    out+="$(printf '  %-16s %s' 'kernel:'      "$(sys_kernel)")"$'\n'
+    out+="$(printf '  %-16s %s' 'arch:' "$(sys_arch)")"$'\n'
+    out+="$(printf '  %-16s %s' 'virtualization:' "$(sys_virt)")"$'\n'
     out+="$(printf '  %-16s %s' 'CPU/RAM:'   "$(sys_cpu_count) vCPU / $(sys_memory_mb) MiB")"$'\n'
     out+="$(printf '  %-16s %s' 'swap:'      "$(report_swap)")"$'\n'
-    out+="$(printf '  %-16s %s' 'диск /:'    "$(report_disk)")"$'\n'
-    out+="$(printf '  %-16s %s' 'время:'     "$(date '+%Y-%m-%d %H:%M:%S %Z')")"$'\n'
+    out+="$(printf '  %-16s %s' 'disk /:'    "$(report_disk)")"$'\n'
+    out+="$(printf '  %-16s %s' 'time:'     "$(date '+%Y-%m-%d %H:%M:%S %Z')")"$'\n'
 
     if config_get_bool '.Report.IncludeFailedUnits' true; then
         out+="$(printf '  %-16s %s' 'failed units:' "$(report_failed_units)")"$'\n'
@@ -81,15 +81,15 @@ report_collect() {
 
     if config_get_bool '.Report.IncludeOpenPorts' true; then
         out+=''
-        out+="  Открытые TCP-порты:"$'\n'
+        out+="  Open TCP ports:"$'\n'
         out+="$(report_listening)"$'\n'
     fi
 
     pending="$(sys_reboot_pending)"
     if [[ -n "$pending" ]] && config_get_bool '.Report.IncludeRebootHint' true; then
         out+=''
-        out+="  ВНИМАНИЕ: требуется перезагрузка (${pending})."$'\n'
-        out+="  До перезагрузки часть обновлений не действует."$'\n'
+        out+="  WARNING: reboot required (${pending})."$'\n'
+        out+="  Some updates stay inactive until reboot."$'\n'
     fi
 
     out+='=========================================================='
@@ -100,12 +100,12 @@ report_swap() {
     if testmode_enabled; then printf 'n/a (test mode)'; return 0; fi
     local line
     line="$(swapon --show=NAME,SIZE --noheadings 2>/dev/null | head -1)"
-    [[ -n "$line" ]] && printf '%s' "$line" || printf 'отсутствует'
+    [[ -n "$line" ]] && printf '%s' "$line" || printf 'absent'
 }
 
 report_disk() {
     if testmode_enabled; then printf 'n/a (test mode)'; return 0; fi
-    df -h / 2>/dev/null | awk 'NR==2 {printf "%s / %s (%s занято)", $3, $2, $5}'
+    df -h / 2>/dev/null | awk 'NR==2 {printf "%s / %s (%s used)", $3, $2, $5}'
 }
 
 report_failed_units() {
@@ -113,7 +113,7 @@ report_failed_units() {
     local count
     count="$(systemctl --failed --no-legend 2>/dev/null | grep -c . || true)"
     if [[ "$count" == 0 ]]; then
-        printf 'нет'
+        printf 'none'
     else
         printf '%s: %s' "$count" "$(systemctl --failed --no-legend 2>/dev/null | awk '{print $1}' | paste -sd, -)"
     fi
@@ -121,10 +121,10 @@ report_failed_units() {
 
 report_ssh_effective() {
     if testmode_enabled; then printf 'n/a (test mode)'; return 0; fi
-    command -v sshd > /dev/null 2>&1 || { printf 'sshd не установлен'; return 0; }
+    command -v sshd > /dev/null 2>&1 || { printf 'sshd not installed'; return 0; }
 
     local eff pw root
-    eff="$(sshd -T 2>/dev/null)" || { printf 'не удалось прочитать'; return 0; }
+    eff="$(sshd -T 2>/dev/null)" || { printf 'failed to read'; return 0; }
     pw="$(printf '%s\n' "$eff" | awk '/^passwordauthentication /{print $2}')"
     root="$(printf '%s\n' "$eff" | awk '/^permitrootlogin /{print $2}')"
     printf 'password=%s, root=%s, maxauthtries=%s' "$pw" "$root" \
@@ -133,12 +133,12 @@ report_ssh_effective() {
 
 report_firewall_state() {
     if testmode_enabled; then printf 'n/a (test mode)'; return 0; fi
-    command -v nft > /dev/null 2>&1 || { printf 'nft не установлен'; return 0; }
+    command -v nft > /dev/null 2>&1 || { printf 'nft not installed'; return 0; }
 
     local table
     table="$(config_get '.Firewall.TableName' 'fw')"
     if ! nft list table inet "$table" > /dev/null 2>&1; then
-        printf 'таблица inet %s не загружена' "$table"
+        printf 'table inet %s is not loaded' "$table"
         return 0
     fi
 
@@ -151,28 +151,28 @@ report_firewall_state() {
 
 report_fail2ban_state() {
     if testmode_enabled; then printf 'n/a (test mode)'; return 0; fi
-    command -v fail2ban-client > /dev/null 2>&1 || { printf 'не установлен'; return 0; }
+    command -v fail2ban-client > /dev/null 2>&1 || { printf 'not installed'; return 0; }
 
     local banned jails
     banned="$(fail2ban-client status sshd 2>/dev/null | awk -F: '/Currently banned/{gsub(/ /,"",$2); print $2}')"
     jails="$(fail2ban-client status 2>/dev/null | awk -F: '/Jail list/{gsub(/^ +/,"",$2); print $2}')"
-    printf 'active=%s, в бане=%s, jails=%s' \
-        "$(systemctl is-active fail2ban 2>/dev/null || echo '?')" "${banned:-0}" "${jails:-нет}"
+    printf 'active=%s, banned=%s, jails=%s' \
+        "$(systemctl is-active fail2ban 2>/dev/null || echo '?')" "${banned:-0}" "${jails:-none}"
 }
 
 report_updates_state() {
     if testmode_enabled; then printf 'n/a (test mode)'; return 0; fi
 
-    local uu='нет' timers=''
+    local uu='none' timers=''
     if systemctl is-enabled unattended-upgrades > /dev/null 2>&1; then
         uu="$(systemctl is-enabled unattended-upgrades)"
     fi
     timers="$(systemctl list-timers --no-legend apt-daily.timer apt-daily-upgrade.timer 2>/dev/null | grep -c . || true)"
-    printf 'unattended-upgrades=%s, таймеров=%s' "$uu" "$timers"
+    printf 'unattended-upgrades=%s, timers=%s' "$uu" "$timers"
 }
 
 report_listening() {
     if testmode_enabled; then printf '    n/a (test mode)'; return 0; fi
-    command -v ss > /dev/null 2>&1 || { printf '    ss не установлен'; return 0; }
+    command -v ss > /dev/null 2>&1 || { printf '    ss not installed'; return 0; }
     ss -tlnpH 2>/dev/null | awk '{printf "    %-6s %-26s %s\n", "tcp", $4, $6}' | sort -u
 }

@@ -34,7 +34,7 @@ step_packages() {
     fi
 
     if ! pkg_supported; then
-        step_skipped "пакетный менеджер не определён (семейство '$(pkg_family)')"
+        step_skipped "package manager not detected (family '$(pkg_family)')"
         return $?
     fi
 
@@ -54,14 +54,14 @@ step_packages() {
     done < <(pkg_names_for_family Remove)
 
     if (( ${#install_list[@]} == 0 && ${#remove_list[@]} == 0 )); then
-        step_skipped "списки пакетов для семейства '${family}' пусты"
+        step_skipped "package lists for family '${family}' are empty"
         return $?
     fi
 
-    if ! confirm_step_action "пакетная база" "Установить ${#install_list[@]}, удалить ${#remove_list[@]} пакетов" Medium; then
+    if ! confirm_step_action "package database" "Install ${#install_list[@]}, remove ${#remove_list[@]} packages" Medium; then
         local rc=$?
-        if (( rc == 2 )); then step_skipped '--what-if: пакеты не изменялись'; return $?; fi
-        step_skipped 'пользователь отказался менять набор пакетов'
+        if (( rc == 2 )); then step_skipped '--what-if: packages untouched'; return $?; fi
+        step_skipped 'user declined to change the package set'
         return $?
     fi
 
@@ -72,7 +72,7 @@ step_packages() {
         if pkg_remove "${remove_list[@]}"; then
             removed_count="${#remove_list[@]}"
         else
-            log_warn "Не удалось удалить часть пакетов: ${remove_list[*]}"
+            log_warn "Failed to remove some packages: ${remove_list[*]}"
         fi
     fi
 
@@ -94,14 +94,14 @@ step_packages() {
     fi
 
     if config_get_bool '.Packages.Autoremove' false; then
-        pkg_autoremove || log_warn 'autoremove завершился ошибкой.'
+        pkg_autoremove || log_warn 'autoremove failed.'
     fi
 
     if (( ${#failed[@]} > 0 )); then
-        step_failed "не установлены: ${failed[*]} (установлено ${installed_count}, удалено ${removed_count})"
+        step_failed "not installed: ${failed[*]} (installed ${installed_count}, removed ${removed_count})"
         return $?
     fi
 
-    step_ok "семейство ${family}: установлено ${installed_count}, удалено ${removed_count}"
+    step_ok "family ${family}: installed ${installed_count}, removed ${removed_count}"
     return $?
 }

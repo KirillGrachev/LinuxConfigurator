@@ -76,7 +76,7 @@ secret_resolve() {
     [[ -n "$value" ]] || { printf ''; return 0; }
 
     if [[ "$LCFG_SECRET_BLOCK_TEST_DATA" == true ]] && secret_is_test_data "$value"; then
-        log_error "Секрет '${name}' похож на тестовую заглушку и отвергнут (Secrets.BlockTestDataSecrets=true)."
+        log_error "Secret '${name}' looks like a test placeholder and was rejected (Secrets.BlockTestDataSecrets=true)."
         printf ''
         return 1
     fi

@@ -24,34 +24,34 @@ def matches_type($t):
         else ($v | type) == $x end);
 
 def type_label($t):
-  if ($t | type) == "array" then ($t | join(" или ")) else ($t | tostring) end;
+  if ($t | type) == "array" then ($t | join(" or ")) else ($t | tostring) end;
 
 def validate($schema; $path):
   . as $v
   | if $schema == null then []
     else
       (if ($schema | has("type")) and ($v | matches_type($schema.type) | not)
-         then ["\($path): ожидается тип \(type_label($schema.type)), получен \($v | type)"]
+         then ["\($path): expected type \(type_label($schema.type)), got \($v | type)"]
          else [] end)
     + (if ($schema | has("enum")) and (($schema.enum | index($v)) == null)
-         then ["\($path): значение \($v | tojson) не входит в список допустимых \($schema.enum | tojson)"]
+         then ["\($path): value \($v | tojson) is not in the allowed list \($schema.enum | tojson)"]
          else [] end)
     + (if ($schema | has("minimum")) and ($v | type == "number") and ($v < $schema.minimum)
-         then ["\($path): значение \($v) меньше допустимого минимума \($schema.minimum)"]
+         then ["\($path): value \($v) is below the allowed minimum of \($schema.minimum)"]
          else [] end)
     + (if ($schema | has("maximum")) and ($v | type == "number") and ($v > $schema.maximum)
-         then ["\($path): значение \($v) больше допустимого максимума \($schema.maximum)"]
+         then ["\($path): value \($v) exceeds the allowed maximum of \($schema.maximum)"]
          else [] end)
     + (if ($schema | has("pattern")) and ($v | type == "string") and (($v | test($schema.pattern)) | not)
-         then ["\($path): значение \"\($v)\" не соответствует шаблону /\($schema.pattern)/"]
+         then ["\($path): value \"\($v)\" does not match pattern /\($schema.pattern)/"]
          else [] end)
     + (if ($schema | has("minLength")) and ($v | type == "string") and (($v | length) < $schema.minLength)
-         then ["\($path): строка короче \($schema.minLength) символов"]
+         then ["\($path): string is shorter than \($schema.minLength) characters"]
          else [] end)
     + (if ($schema | has("required")) and ($v | type == "object")
          then [ $schema.required[] as $k
                 | select(($v | has($k)) | not)
-                | "\($path): отсутствует обязательное поле \"\($k)\"" ]
+                | "\($path): required field \"\($k)\" is missing" ]
          else [] end)
     + (if ($schema | has("properties")) and ($v | type == "object")
          then [ $schema.properties | to_entries[] | . as $e

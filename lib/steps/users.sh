@@ -34,7 +34,7 @@ step_users() {
     name="$(config_get '.Users.Admin.Name' '')"
 
     if [[ -z "$name" ]]; then
-        step_failed 'Users.Admin.Name не задан'
+        step_failed 'Users.Admin.Name is not set'
         return $?
     fi
 
@@ -43,10 +43,10 @@ step_users() {
     # дало бы пустое значение, и домашний каталог не создавался бы никогда.
     if config_get_bool '.Users.Admin.CreateHome' true; then create_home=true; else create_home=false; fi
 
-    if ! confirm_step_action "пользователь ${name}" "Создать/настроить учётную запись и sudo" High; then
+    if ! confirm_step_action "user ${name}" "Create/configure the account and sudo access" High; then
         local rc=$?
-        if (( rc == 2 )); then step_skipped '--what-if: пользователи не изменялись'; return $?; fi
-        step_skipped 'пользователь отказался менять учётные записи'
+        if (( rc == 2 )); then step_skipped '--what-if: users untouched'; return $?; fi
+        step_skipped 'user declined to change the accounts'
         return $?
     fi
 
@@ -61,7 +61,7 @@ step_users() {
     if users_ensure_account "$name" "$shell" "$create_home" "${groups[@]}"; then
         done_parts+=("user=${name}")
     else
-        step_failed "не удалось создать или настроить пользователя '${name}'"
+        step_failed "failed to create or configure user '${name}'"
         return $?
     fi
 
@@ -69,7 +69,7 @@ step_users() {
         if users_write_sudoers_dropin "$name"; then
             done_parts+=('sudo=nopasswd')
         else
-            step_failed 'sudoers-фрагмент не прошёл проверку visudo и не установлен'
+            step_failed 'the sudoers fragment failed visudo and was not installed'
             return $?
         fi
     fi
@@ -92,7 +92,7 @@ step_users() {
             runtime_set_value users_keys_installed true
         fi
     else
-        step_failed 'не удалось установить SSH-ключи'
+        step_failed 'failed to install SSH keys'
         return $?
     fi
 
@@ -126,29 +126,29 @@ users_ensure_account() {
 
     users_filter_existing_groups "$@"
     if (( ${#USERS_MISSING_GROUPS[@]} > 0 )); then
-        log_warn "Группы не существуют и будут пропущены: ${USERS_MISSING_GROUPS[*]}"
+        log_warn "Groups do not exist and will be skipped: ${USERS_MISSING_GROUPS[*]}"
     fi
     if (( ${#USERS_VALID_GROUPS[@]} > 0 )); then
         useradd_args+=(-G "$(IFS=,; echo "${USERS_VALID_GROUPS[*]}")")
     fi
 
     if id "$name" > /dev/null 2>&1; then
-        log_debug "Пользователь '${name}' уже существует."
+        log_debug "User '${name}' already exists."
         local group
         for group in ${USERS_VALID_GROUPS[@]+"${USERS_VALID_GROUPS[@]}"}; do
             if ! id -nG "$name" 2>/dev/null | tr ' ' '\n' | grep -qxF "$group"; then
-                run_quiet usermod -aG "$group" "$name" || log_warn "Не удалось добавить '${name}' в группу '${group}'."
+                run_quiet usermod -aG "$group" "$name" || log_warn "Failed to add '${name}' to group '${group}'."
             fi
         done
         return 0
     fi
 
     if run_cmd useradd "${useradd_args[@]}" "$name"; then
-        log_info "Создан пользователь '${name}'."
+        log_info "Created user '${name}'."
         return 0
     fi
 
-    log_error "useradd не смог создать пользователя '${name}'."
+    log_error "useradd could not create user '${name}'."
     return 1
 }
 
@@ -169,7 +169,7 @@ ${name} ALL=(ALL:ALL) NOPASSWD:ALL
 
     if testmode_enabled; then
         fs_write "$dropin" "$content" 440 root:root
-        testmode_journal command validate "$tmp" "visudo -cf (симуляция)"
+        testmode_journal command validate "$tmp" "visudo -cf (simulated)"
         return 0
     fi
 
@@ -178,7 +178,7 @@ ${name} ALL=(ALL:ALL) NOPASSWD:ALL
     chmod 440 "$tmp"
 
     if ! visudo -cf "$tmp" > /dev/null 2>&1; then
-        log_error "Проверка visudo не прошла, фрагмент НЕ установлен:"
+        log_error "visudo check failed; the fragment was NOT installed:"
         visudo -cf "$tmp" 2>&1 | head -3 | while IFS= read -r l; do log_error "  ${l}"; done
         rm -f "$tmp"
         return 1
@@ -189,7 +189,7 @@ ${name} ALL=(ALL:ALL) NOPASSWD:ALL
     mv -f "$tmp" "$dropin"
     chown root:root "$dropin" 2>/dev/null || true
     chmod 440 "$dropin"
-    log_debug "Установлен ${dropin}"
+    log_debug "Installed ${dropin}"
     return 0
 }
 
@@ -213,8 +213,8 @@ users_install_keys() {
     fi
 
     if [[ -z "$keys" ]]; then
-        log_warn "Секрет '${secret_name}' пуст и генерация отключена - authorized_keys не изменялся."
-        log_warn "ВНИМАНИЕ: если шаг ssh отключит вход по паролю, доступ останется только у root по существующим ключам."
+        log_warn "Secret '${secret_name}' is empty and generation is disabled; authorized_keys was not modified."
+        log_warn "WARNING: if the ssh step disables password login, only root keeps access via existing keys."
         printf ''
         return 0
     fi
@@ -255,10 +255,10 @@ users_append_authorized_keys() {
         return 0
     fi
 
-    [[ -d "$home" ]] || { log_warn "Домашний каталог ${home} не существует - ключи для '${owner}' не установлены."; return 1; }
+    [[ -d "$home" ]] || { log_warn "Home directory ${home} does not exist; keys for '${owner}' were not installed."; return 1; }
 
     install -d -m 700 -o "$owner" -g "$owner" "$ssh_dir" 2>/dev/null || {
-        log_warn "Не удалось создать ${ssh_dir}."
+        log_warn "Failed to create ${ssh_dir}."
         return 1
     }
     touch "$auth"
@@ -278,7 +278,7 @@ users_append_authorized_keys() {
     chown -R "$owner:$owner" "$ssh_dir" 2>/dev/null || true
     chmod 700 "$ssh_dir"
     chmod 600 "$auth"
-    log_debug "authorized_keys для '${owner}': добавлено ${added} ключ(ей)."
+    log_debug "authorized_keys for '${owner}': ${added} key(s) added."
     return 0
 }
 
@@ -300,12 +300,12 @@ users_generate_keypair() {
     fi
 
     if ! run_has ssh-keygen; then
-        log_error 'ssh-keygen не найден, сгенерировать ключ невозможно.'
+        log_error 'ssh-keygen not found; cannot generate a key.'
         return 1
     fi
 
     if testmode_enabled; then
-        testmode_journal ssh-key generate "$out_path" "ed25519, без пароля"
+        testmode_journal ssh-key generate "$out_path" "ed25519, no passphrase"
         # В песочницу кладётся образец публичного ключа: последующее чтение
         # "${out_path}.pub" в users_install_keys должно отработать так же, как
         # в реальном прогоне, иначе тест ушёл бы по ветке "ключей нет".
@@ -319,20 +319,20 @@ users_generate_keypair() {
     install -d -m 700 -o root -g root "$out_dir"
 
     if [[ -f "$out_path" ]]; then
-        log_info "Ключ уже существует: ${out_path} - использую существующий."
+        log_info "Key already exists: ${out_path}; reusing it."
     else
         # -a 100: число раундов KDF для ed25519. Значение по умолчанию (16)
         # перебирается заметно быстрее; 100 раундов стоят доли секунды при входе.
         if ! run_cmd ssh-keygen -t ed25519 -a 100 -N '' \
                  -C "${name}@$(hostname)-lcfg" -f "$out_path" -q; then
-            log_error "ssh-keygen не смог создать ключ в ${out_path}."
+            log_error "ssh-keygen could not create a key at ${out_path}."
             return 1
         fi
         chmod 600 "$out_path"
         chmod 644 "${out_path}.pub"
     fi
 
-    console_warn "Сгенерирован приватный ключ: ${out_path}"
-    console_warn "Заберите его на рабочую машину (scp) и удалите с сервера."
+    console_warn "Private key generated: ${out_path}"
+    console_warn "Copy it to your workstation (scp) and delete it from the server."
     printf '%s' "$out_path"
 }

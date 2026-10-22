@@ -35,12 +35,12 @@ step_sysctl() {
     count="$(printf '%s' "$values_json" | jq 'length')"
 
     if (( count == 0 )); then
-        step_skipped 'Sysctl.Values пуст'
+        step_skipped 'Sysctl.Values is empty'
         return $?
     fi
 
     if ! run_has sysctl; then
-        step_skipped 'sysctl отсутствует в системе'
+        step_skipped 'sysctl is not present on this system'
         return $?
     fi
 
@@ -57,17 +57,17 @@ step_sysctl() {
         content+="${key} = ${value}"$'\n'
     done < <(printf '%s' "$values_json" | jq -r 'to_entries | sort_by(.key) | .[] | "\(.key)\t\(.value)"')
 
-    if ! confirm_step_action "$drop_in" "Записать ${count} параметров ядра" Medium; then
+    if ! confirm_step_action "$drop_in" "Write ${count} kernel parameters" Medium; then
         local rc=$?
-        if (( rc == 2 )); then step_skipped '--what-if: параметры не записывались'; return $?; fi
-        step_skipped 'пользователь отказался менять параметры ядра'
+        if (( rc == 2 )); then step_skipped '--what-if: parameters not written'; return $?; fi
+        step_skipped 'user declined to change kernel parameters'
         return $?
     fi
 
     fs_write "$drop_in" "$content" 644 root:root
 
     if ! config_get_bool '.Sysctl.ApplyImmediately' true; then
-        step_ok "записано ${count} параметров в ${drop_in} (применятся при загрузке)"
+        step_ok "wrote ${count} parameters to ${drop_in} (they apply at boot)"
         return $?
     fi
 
@@ -78,11 +78,11 @@ step_sysctl() {
             ((applied++)) || true
         else
             ((skipped++)) || true
-            log_debug "Параметр ${key} не применился (нет в этом ядре или нужен модуль)."
+            log_debug "Parameter ${key} did not apply (absent in this kernel or needs a module)."
         fi
     done < <(printf '%s' "$values_json" | jq -r 'to_entries | sort_by(.key) | .[] | "\(.key)\t\(.value)"')
 
-    step_ok "записано ${count}, применено ${applied}, пропущено ${skipped}"
+    step_ok "written ${count}, applied ${applied}, skipped ${skipped}"
     return $?
 }
 
@@ -92,7 +92,7 @@ sysctl_maybe_load_modules() {
 
     if printf '%s' "$values_json" | jq -e 'keys[] | select(startswith("net.bridge."))' > /dev/null 2>&1; then
         if [[ ! -d /proc/sys/net/bridge ]] && ! testmode_enabled; then
-            run_quiet modprobe br_netfilter || log_debug 'br_netfilter не загрузился - параметры net.bridge.* будут пропущены.'
+            run_quiet modprobe br_netfilter || log_debug 'br_netfilter did not load; net.bridge.* parameters will be skipped.'
         fi
     fi
 

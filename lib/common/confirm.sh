@@ -66,7 +66,7 @@ confirm_step_action() {
     fi
 
     if [[ ! -t 0 ]]; then
-        log_warn "Подтверждение запрошено для '${action}', но stdin не терминал - выполняю без запроса."
+        log_warn "Confirmation requested for '${action}' but stdin is not a terminal; proceeding without the prompt."
         return 0
     fi
 
@@ -76,7 +76,7 @@ confirm_step_action() {
     read -r answer || answer=''
 
     case "${answer,,}" in
-        y|yes|д|да) return 0 ;;
+        y|yes) return 0 ;;
         *)          return 1 ;;
     esac
 }

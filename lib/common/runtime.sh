@@ -81,7 +81,7 @@ runtime_print_summary() {
     local i status
 
     console_plain ''
-    console_plain '==================== ИТОГ ===================='
+    console_plain '=========> Summary <========='
 
     for ((i = 0; i < total; i++)); do
         status="${LCFG_RESULT_STATUS[$i]}"
@@ -93,8 +93,7 @@ runtime_print_summary() {
             "${LCFG_RESULT_MESSAGE[$i]}" "${LCFG_RESULT_MS[$i]}"
     done
 
-    console_plain '----------------------------------------------'
-    console_plain "Шагов: ${total}, ошибок: ${failed}, пропущено: ${skipped}"
+    console_plain "Steps: ${total}, failed: ${failed}, skipped: ${skipped}"
     console_plain '=============================================='
 
     if ((failed > 0)); then

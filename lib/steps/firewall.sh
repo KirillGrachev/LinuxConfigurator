@@ -40,7 +40,7 @@ step_firewall() {
     fi
 
     if ! run_has nft; then
-        step_skipped 'nft не установлен - шаг пропущен (установите nftables или используйте Docker.Enabled)'
+        step_skipped 'nft is not installed; step skipped (install nftables or use Docker.Enabled)'
         return $?
     fi
 
@@ -65,15 +65,15 @@ step_firewall() {
             [[ "$p" == "$ssh_port" ]] && has_ssh=true
         done
         if [[ "$has_ssh" != true ]]; then
-            step_failed "Firewall.AllowedTcpPorts не содержит порт sshd (${ssh_port}) - applying policy drop отрезало бы доступ"
+            step_failed "Firewall.AllowedTcpPorts does not include the sshd port (${ssh_port}); applying policy drop would cut access"
             return $?
         fi
     fi
 
-    if ! confirm_step_action "$conf_path" "Включить nftables с policy drop (открыты: ${tcp_ports[*]:-нет})" High; then
+    if ! confirm_step_action "$conf_path" "Enable nftables with policy drop (open: ${tcp_ports[*]:-none})" High; then
         local rc=$?
-        if (( rc == 2 )); then step_skipped '--what-if: фаервол не изменялся'; return $?; fi
-        step_skipped 'пользователь отказался включать фаервол'
+        if (( rc == 2 )); then step_skipped '--what-if: firewall untouched'; return $?; fi
+        step_skipped 'user declined to enable the firewall'
         return $?
     fi
 
@@ -102,13 +102,13 @@ step_firewall() {
     # Синтаксическая проверка до применения.
     if ! run_quiet nft -c -f "$conf_path"; then
         firewall_revert "$conf_path" "$include_dir" "$backup_dir"
-        step_failed "nft -c отклонил сгенерированную конфигурацию, выполнен откат"
+        step_failed "nft -c rejected the generated configuration; rolled back"
         return $?
     fi
 
     if ! run_quiet nft -f "$conf_path"; then
         firewall_revert "$conf_path" "$include_dir" "$backup_dir"
-        step_failed 'nft -f не смог применить правила, выполнен откат'
+        step_failed 'nft -f could not apply the rules; rolled back'
         return $?
     fi
 
@@ -116,7 +116,7 @@ step_firewall() {
 
     if ! firewall_verify "$table" "$ssh_port"; then
         firewall_revert "$conf_path" "$include_dir" "$backup_dir"
-        step_failed 'проверка после применения не прошла, выполнен откат'
+        step_failed 'post-apply verification failed; rolled back'
         return $?
     fi
 
@@ -124,10 +124,10 @@ step_firewall() {
 
     local extra=''
     if firewall_docker_present; then
-        extra='; Docker-таблицы не затронуты, опубликованные порты контейнеров фильтруются через DOCKER-USER'
+        extra='; Docker tables untouched, published container ports are filtered via DOCKER-USER'
     fi
 
-    step_ok "inet ${table} policy drop, открыто TCP: ${tcp_ports[*]}${extra}"
+    step_ok "inet ${table} policy drop, open TCP: ${tcp_ports[*]}${extra}"
     return $?
 }
 
@@ -196,10 +196,10 @@ systemctl restart nftables 2>/dev/null || true
     chmod 700 "$script"
     systemctl stop lcfg-fw-revert.timer > /dev/null 2>&1 || true
     systemd-run --on-active="$guard_sec" --unit=lcfg-fw-revert "$script" > /dev/null 2>&1 || {
-        log_warn 'Страховку фаервола взвести не удалось - продолжаю без неё.'
+        log_warn 'Failed to arm the firewall rollback guard; continuing without it.'
         return 1
     }
-    log_info "Страховка фаервола взведена: авто-откат через ${guard_sec} с."
+    log_info "Firewall rollback guard armed: automatic rollback in ${guard_sec} s."
 }
 
 firewall_disarm_guard() {
@@ -214,7 +214,7 @@ firewall_disarm_guard() {
 
 firewall_revert() {
     local conf_path="$1" include_dir="$2" backup_dir="$3"
-    log_warn "Откатываю конфигурацию фаервола из ${backup_dir}."
+    log_warn "Rolling back the firewall configuration from ${backup_dir}."
 
     if testmode_enabled; then
         testmode_journal guard revert "$conf_path" "$backup_dir"
@@ -388,39 +388,39 @@ firewall_verify() {
     local table="$1" ssh_port="$2"
 
     if testmode_enabled; then
-        testmode_journal command verify "nft list table inet ${table}" 'правила загружены'
+        testmode_journal command verify "nft list table inet ${table}" 'rules loaded'
         return 0
     fi
 
     if ! nft list table inet "$table" > /dev/null 2>&1; then
-        log_error "Таблица inet ${table} не загрузилась в ядро."
+        log_error "Table inet ${table} did not load into the kernel."
         return 1
     fi
 
     if ! nft list chain inet "$table" input 2>/dev/null | grep -q "policy $(config_get '.Firewall.InputPolicy' 'drop')"; then
-        log_error "Политика INPUT не соответствует ожидаемой."
+        log_error "INPUT policy does not match the expected value."
         return 1
     fi
 
     # Локальное подключение к sshd: проверяет, что accept-правило для порта работает.
     if run_has nc; then
         if ! nc -z -w 5 127.0.0.1 "$ssh_port" > /dev/null 2>&1; then
-            log_warn "Порт ${ssh_port} не отвечает локально (nc) - проверяю через /dev/tcp."
+            log_warn "Port ${ssh_port} does not answer locally (nc); checking via /dev/tcp."
         fi
     fi
     if ! timeout 5 bash -c "exec 3<>/dev/tcp/127.0.0.1/${ssh_port}" 2>/dev/null; then
-        log_error "Порт sshd ${ssh_port} недоступен через loopback после применения правил."
+        log_error "sshd port ${ssh_port} is unreachable via loopback after applying the rules."
         return 1
     fi
 
     # Docker не должен был пострадать.
     if firewall_docker_present; then
         if ! nft list tables 2>/dev/null | grep -q 'table ip filter'; then
-            log_error 'Таблица Docker "ip filter" исчезла - правила задели чужие таблицы.'
+            log_error 'Docker table "ip filter" disappeared; the rules touched foreign tables.'
             return 1
         fi
     fi
 
-    log_debug "Проверка фаервола пройдена: таблица inet ${table}, порт ${ssh_port} доступен."
+    log_debug "Firewall verification passed: table inet ${table}, port ${ssh_port} reachable."
     return 0
 }

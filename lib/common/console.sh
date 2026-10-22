@@ -56,6 +56,6 @@ console_result_line() {
         *)       mark='[FAIL] '; color="$LCFG_C_RED" ;;
     esac
 
-    printf '%s%s%s %-18s %s %s(%s мс)%s\n' \
+    printf '%s%s%s %-18s %s %s(%s ms)%s\n' \
         "$color" "$mark" "$LCFG_C_RESET" "$name" "$message" "$LCFG_C_GRAY" "$ms" "$LCFG_C_RESET"
 }

@@ -40,16 +40,16 @@ config_validate_file() {
     schema_path="$(config_schema_path)"
 
     if [[ ! -r "$config_path" ]]; then
-        console_fatal "Файл конфигурации не найден или не читается: ${config_path}"
+        console_fatal "Configuration file not found or unreadable: ${config_path}"
         return 1
     fi
     if [[ ! -r "$schema_path" ]]; then
-        console_fatal "Файл схемы не найден или не читается: ${schema_path}"
+        console_fatal "Schema file not found or unreadable: ${schema_path}"
         return 1
     fi
 
     if ! jq -e . "$config_path" > /dev/null 2>&1; then
-        console_fatal "Конфигурация не является корректным JSON: ${config_path}"
+        console_fatal "Configuration is not valid JSON: ${config_path}"
         jq . "$config_path" 2>&1 | head -3 | while IFS= read -r line; do console_fatal "  ${line}"; done
         return 1
     fi
@@ -57,7 +57,7 @@ config_validate_file() {
     local result
     result="$(jq -f "${LCFG_PROJECT_ROOT}/lib/config/validate-schema.jq" \
                  --argjson config "$(cat "$config_path")" "$schema_path" 2>&1)" || {
-        console_fatal "Валидатор схемы завершился ошибкой:"
+        console_fatal "Schema validator exited with an error:"
         printf '%s\n' "$result" | head -5 | while IFS= read -r line; do console_fatal "  ${line}"; done
         return 1
     }
@@ -69,7 +69,7 @@ config_validate_file() {
         return 0
     fi
 
-    console_fatal "Ошибок валидации: ${error_count}"
+    console_fatal "Validation errors: ${error_count}"
     while IFS= read -r error; do
         [[ -n "$error" ]] && console_fatal "  ${error}"
     done < <(printf '%s' "$result" | jq -r '.errors[]')
@@ -92,7 +92,7 @@ config_print_warnings() {
 
     is_test="$(jq -r '.Meta.IsTestData // false' "$config_path")"
     if [[ "$is_test" == true ]]; then
-        console_warn 'Meta.IsTestData = true: конфигурация содержит тестовые значения. Замените их перед применением к боевой машине.'
+        console_warn 'Meta.IsTestData = true: the configuration carries test values. Replace them before applying to a production machine.'
     fi
 
     # Заглушка в Hostname.Name - самая частая ошибка при копировании конфига
@@ -102,13 +102,13 @@ config_print_warnings() {
     host_name="$(jq -r '.Hostname.Name // ""' "$config_path")"
     case "$host_name" in
         ''|changeme-host|changeme|localhost|hostname|server)
-            console_warn "Hostname.Name = '${host_name:-<пусто>}' похоже на заглушку. Задайте реальное имя машины, иначе шаг hostname завершится ошибкой."
+            console_warn "Hostname.Name = '${host_name:-<empty>}' looks like a placeholder. Set a real machine name or the hostname step will fail."
             ;;
     esac
 
     pw_auth="$(jq -r '.Ssh.PasswordAuthentication // false' "$config_path")"
     if [[ "$pw_auth" == true ]]; then
-        console_warn 'Ssh.PasswordAuthentication = true: вход по паролю останется разрешён. Для публичного сервера это основной вектор подбора.'
+        console_warn 'Ssh.PasswordAuthentication = true: password login stays enabled. On a public server this is the primary brute-force vector.'
     fi
 
     # Неизвестное имя шага в DefaultSteps - опечатка, из-за которой часть настройки
@@ -116,20 +116,20 @@ config_print_warnings() {
     while IFS= read -r step; do
         [[ -n "$step" ]] || continue
         if ! step_exists "$step"; then
-            console_warn "General.DefaultSteps содержит неизвестный шаг '${step}' - он будет отклонён при запуске."
+            console_warn "General.DefaultSteps contains unknown step '${step}'; it will be rejected at startup."
         fi
     done < <(jq -r '.General.DefaultSteps[]?' "$config_path")
 
     stop_on_failure="$(jq -r '.General.StopOnFirstFailure // false' "$config_path")"
     if [[ "$stop_on_failure" == true ]]; then
-        console_warn 'General.StopOnFirstFailure = true: первая же ошибка прервёт весь прогон.'
+        console_warn 'General.StopOnFirstFailure = true: the first failure aborts the whole run.'
     fi
 
     swap_mb="$(jq -r '.Swap.SizeMegabytes // 0' "$config_path")"
     if [[ "$swap_mb" =~ ^[0-9]+$ ]] && (( swap_mb > 0 )); then
         disk_free_mb="$(sys_disk_free_mb /)"
         if [[ -n "$disk_free_mb" ]] && (( swap_mb + 1024 > disk_free_mb )); then
-            console_warn "Swap.SizeMegabytes=${swap_mb}, но на / свободно всего ${disk_free_mb} MiB - не хватает места."
+            console_warn "Swap.SizeMegabytes=${swap_mb} but / has only ${disk_free_mb} MiB free; not enough space."
         fi
     fi
 }

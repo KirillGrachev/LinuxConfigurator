@@ -67,12 +67,12 @@ log_init() {
         else
             # Не роняем запуск из-за недоступного каталога журнала: диагностика
             # важнее самого журнала, поэтому уходим в консольный режим с предупреждением.
-            console_warn "Каталог журнала '${file}' недоступен, журнал ведётся только в консоли."
+            console_warn "Log directory '${file}' is not writable; keeping the log in the console only."
             LCFG_LOG_FILE=''
         fi
     fi
 
-    log_write 'DEBUG' "Журнал инициализирован: file='${LCFG_LOG_FILE}' level=${LCFG_LOG_LEVEL}"
+    log_write 'DEBUG' "Log initialized: file='${LCFG_LOG_FILE}' level=${LCFG_LOG_LEVEL}"
 }
 
 log_write() {
@@ -131,6 +131,6 @@ log_rotate() {
     done < <(find "$dir" -maxdepth 1 -type f -name "${base}*" \
                     -mtime "+${LCFG_LOG_RETENTION_DAYS}" -print0 2>/dev/null)
 
-    (( removed > 0 )) && log_debug "Ротация журнала: удалено файлов: ${removed}"
+    (( removed > 0 )) && log_debug "Log rotation: files removed: ${removed}"
     return 0
 }

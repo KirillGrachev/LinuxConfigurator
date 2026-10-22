@@ -8,7 +8,7 @@ on:
 
 jobs:
   lint-and-test:
-    name: ShellCheck, bats и прогон в тестовом режиме (${{ matrix.os }})
+    name: ShellCheck, bats and a test-mode run (${{ matrix.os }})
     # ubuntu-latest намеренно НЕ используется: метка мигрирует на Ubuntu 26 с
     # 19.10.2026, то есть дистрибутив под тестами поменялся бы сам, без единой
     # строчки в diff. Версии закреплены явно.
@@ -30,15 +30,15 @@ jobs:
             experimental: true
 
     steps:
-      - name: Чекаут репозитория
+      - name: Check out the repository
         uses: actions/checkout@v7
 
-      - name: Установка инструментов (jq, shellcheck, bats)
+      - name: Install tools (jq, shellcheck, bats)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq jq shellcheck bats
 
-      - name: Установка пакетов, которые настраивает конфигуратор
+      - name: Install the packages the configurator configures
         # На чистом раннере нет sshd, nft, logrotate и fail2ban. Без них шаги ssh
         # и firewall завершаются как Skipped, и тесты содержимого (generated-content)
         # проверяли бы пустую песочницу, то есть зелёный CI ничего бы не доказывал.
@@ -49,19 +49,19 @@ jobs:
           # раннере sshd не запускается, поэтому проверяем явно.
           test -f /etc/ssh/ssh_host_ed25519_key || sudo ssh-keygen -A
 
-      - name: Версии инструментов
+      - name: Tool versions
         run: |
-          . /etc/os-release && echo "ОС: ${PRETTY_NAME}"
+          . /etc/os-release && echo "OS: ${PRETTY_NAME}"
           bash --version | head -1
           printf 'jq         %s\n' "$(jq --version)"
           printf 'shellcheck %s\n' "$(shellcheck --version | awk -F': ' '/^version:/{print $2}')"
           bats --version
 
-      - name: Проверка синтаксиса (bash -n)
+      - name: Syntax check (bash -n)
         run: |
           fail=0
           while IFS= read -r f; do
-            bash -n "$f" || { echo "::error::синтаксическая ошибка в $f"; fail=1; }
+            bash -n "$f" || { echo "::error::syntax error in $f"; fail=1; }
           done < <(find . -path ./.git -prune -o -name '*.sh' -print | sort)
           exit "$fail"
 
@@ -69,10 +69,10 @@ jobs:
         run: |
           shellcheck -x configure-linux.sh lib/*.sh lib/*/*.sh tests/run-tests.sh
 
-      - name: Валидация config.json по схеме
+      - name: Validate config.json against the schema
         run: ./configure-linux.sh --validate-config
 
-      - name: Тесты (bats, TAP-формат, от root)
+      - name: Tests (bats, TAP format, as root)
         # От root, а не от пользователя runner: тесты generated-content прогоняют
         # сгенерированные конфиги через настоящие валидаторы, а `nft -c` требует
         # CAP_NET_ADMIN. Сам прогон безопасен — все тесты идут в --test-mode,
@@ -87,11 +87,11 @@ jobs:
           rc=${PIPESTATUS[0]}
           set -e
           if [ "$rc" -ne 0 ]; then
-            echo "::group::Диагностика окружения"
+            echo "::group::Environment diagnostics"
             echo "whoami=$(whoami) HOME=$HOME TMPDIR=${TMPDIR:-unset}"
             echo "systemd=$([ -d /run/systemd/system ] && echo yes || echo no)"
             for t in nft sshd visudo logrotate fail2ban-client jq docker systemctl; do
-              printf '  %-18s %s\n' "$t" "$(command -v $t || echo ОТСУТСТВУЕТ)"
+              printf '  %-18s %s\n' "$t" "$(command -v $t || echo MISSING)"
             done
             echo "::endgroup::"
             grep -B1 -A10 '^not ok' /tmp/bats.log | head -120 | while IFS= read -r line; do
@@ -100,24 +100,24 @@ jobs:
           fi
           exit "$rc"
 
-      - name: Прогон всех шагов в тестовом режиме
+      - name: Run all steps in test mode
         run: |
           jq '.Hostname.Name = "ci-runner"' config/config.json > /tmp/ci.json
           sudo -E ./configure-linux.sh --test-mode --run-all --config /tmp/ci.json
 
-      - name: Проверка, что тестовый режим не тронул раннер
+      - name: Verify test mode left the runner untouched
         run: |
           # /etc/nftables.conf на раннере существует (его ставит пакет nftables),
           # поэтому проверяется не наличие файла, а появление в нём НАШЕЙ таблицы.
           if [ -e /etc/nftables.conf ] && grep -q 'inet fw' /etc/nftables.conf; then
-            echo "::error::тестовый режим изменил /etc/nftables.conf раннера"; exit 1
+            echo "::error::test mode modified the runner /etc/nftables.conf"; exit 1
           fi
           if [ -e /root/lcfg-generated-keys ]; then
-            echo "::error::тестовый режим создал каталог ключей"; exit 1
+            echo "::error::test mode created the key directory"; exit 1
           fi
-          echo "раннер чист"
+          echo "runner is clean"
 
-      - name: Сбор отчётов тестового режима
+      - name: Collect test-mode reports
         if: always()
         # Песочница создаётся через mktemp -d, то есть с правами 700 и владельцем
         # root (тесты идут под sudo). upload-artifact работает от пользователя
@@ -134,9 +134,9 @@ jobs:
             sudo cp "$f" "/tmp/lcfg-artifacts/testmode-report-${i}.json"
           done
           sudo chmod -R a+rX /tmp/lcfg-artifacts
-          echo "собрано отчётов: ${i}"
+          echo "reports collected: ${i}"
 
-      - name: Отчёт тестового режима (артефакт)
+      - name: Test-mode report (artifact)
         if: always()
         uses: actions/upload-artifact@v7
         with:

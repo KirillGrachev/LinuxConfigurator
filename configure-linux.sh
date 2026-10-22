@@ -51,7 +51,7 @@ readonly LC_VERSION='1.0.0'
 # возвращает статус самого readonly, поэтому сбой cd/pwd остался бы незамеченным
 # и запуск продолжился бы с пустым путём к проекту.
 LC_PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || {
-    echo "[FATAL] Не удалось определить каталог проекта." >&2
+    echo "[FATAL] Could not determine the project directory." >&2
     exit 2
 }
 readonly LC_PROJECT_ROOT
@@ -93,8 +93,8 @@ main() {
             --version)         echo "LinuxConfigurator ${LC_VERSION}"; return 0 ;;
             --help|-h)         usage; return 0 ;;
             *)
-                echo "[FATAL] Неизвестный аргумент: $1" >&2
-                echo "        Запустите с --help, чтобы увидеть список аргументов." >&2
+                echo "[FATAL] Unknown argument: $1" >&2
+                echo "        Run with --help to see the argument list." >&2
                 return 2
                 ;;
         esac
@@ -106,7 +106,7 @@ main() {
 
     # shellcheck source=lib/load-functions.sh
     if ! source "${LC_PROJECT_ROOT}/lib/load-functions.sh"; then
-        echo "[FATAL] Не удалось загрузить функции проекта." >&2
+        echo "[FATAL] Failed to load the project functions." >&2
         return 2
     fi
 
@@ -125,11 +125,11 @@ main() {
     # --- Режим проверки конфигурации: никаких изменений системы ---
     if [[ "$validate_only" == true ]]; then
         if config_validate_file "$config_path"; then
-            console_ok "Конфигурация '${config_path}' соответствует схеме."
+            console_ok "Configuration '${config_path}' matches the schema."
             config_print_warnings "$config_path"
             return 0
         fi
-        console_fatal "Конфигурация '${config_path}' НЕ соответствует схеме (подробности выше)."
+        console_fatal "Configuration '${config_path}' does NOT match the schema (details above)."
         return 2
     fi
 
@@ -137,7 +137,7 @@ main() {
 
     local config
     if ! config="$(config_load "$config_path")"; then
-        console_fatal "Не удалось прочитать конфигурацию '${config_path}'."
+        console_fatal "Failed to read configuration '${config_path}'."
         return 2
     fi
     runtime_set_config "$config"
@@ -165,7 +165,7 @@ main() {
     elif [[ "$run_all" == true ]]; then
         orchestrator_run_default_steps || summary_rc=$?
     else
-        console_fatal 'Не выбран режим запуска: --run-all, --run-steps LIST или --interactive.'
+        console_fatal 'No run mode selected: use --run-all, --run-steps LIST or --interactive.'
         return 2
     fi
 

@@ -33,7 +33,7 @@ step_cleanup() {
         if pkg_autoremove; then
             done_parts+=('autoremove')
         else
-            log_warn 'autoremove завершился ошибкой - продолжаю.'
+            log_warn 'autoremove failed; continuing.'
         fi
     fi
 
@@ -50,18 +50,18 @@ step_cleanup() {
     fi
 
     if config_get_bool '.Cleanup.PurgeOldKernels' true; then
-        cleanup_report_boot_usage && done_parts+=('/boot проверен')
+        cleanup_report_boot_usage && done_parts+=('/boot checked')
     fi
 
     if config_get_bool '.Cleanup.RemoveTempFiles' false; then
-        cleanup_temp_files && done_parts+=('tmp очищен')
+        cleanup_temp_files && done_parts+=('tmp cleaned')
     fi
 
     cleanup_own_artifacts
-    done_parts+=('артефакты конфигуратора')
+    done_parts+=('configurator artifacts')
 
     if (( ${#done_parts[@]} == 0 )); then
-        step_skipped 'нечего очищать'
+        step_skipped 'nothing to clean'
         return $?
     fi
 
@@ -75,28 +75,28 @@ cleanup_report_boot_usage() {
 
     if ! testmode_enabled; then
         if ! mountpoint -q /boot 2>/dev/null; then
-            log_debug '/boot не является отдельным разделом - контроль заполненности не нужен.'
+            log_debug '/boot is not a separate partition; no fill check needed.'
             return 0
         fi
         used_pct="$(sys_disk_used_percent /boot)"
         free_mb="$(sys_disk_free_mb /boot)"
     else
-        testmode_journal command check-boot '/boot' 'контроль заполненности'
+        testmode_journal command check-boot '/boot' 'fill check'
         return 0
     fi
 
     if [[ -n "$used_pct" ]] && (( used_pct >= 80 )); then
-        log_warn "/boot заполнен на ${used_pct}% (свободно ${free_mb} MiB). При следующем обновлении ядра раздел может переполниться, и update-initramfs упадёт."
-        log_warn "Уменьшите Cleanup.KeepKernels или удалите старые linux-image-* вручную."
+        log_warn "/boot is ${used_pct}% full (${free_mb} MiB free). The next kernel update may overflow the partition and update-initramfs will fail."
+        log_warn "Lower Cleanup.KeepKernels or remove old linux-image-* packages by hand."
     else
-        log_debug "/boot: занято ${used_pct:-?}%, свободно ${free_mb:-?} MiB."
+        log_debug "/boot: ${used_pct:-?}% used, ${free_mb:-?} MiB free."
     fi
     return 0
 }
 
 cleanup_temp_files() {
     if testmode_enabled; then
-        testmode_journal command clean-tmp '/tmp' 'старше 7 дней'
+        testmode_journal command clean-tmp '/tmp' 'older than 7 days'
         return 0
     fi
     # Только файлы старше 7 дней: свежее содержимое /tmp может принадлежать
@@ -109,7 +109,7 @@ cleanup_temp_files() {
 # Удаляет то, что конфигуратор создал для своей работы.
 cleanup_own_artifacts() {
     if testmode_enabled; then
-        testmode_journal command cleanup-own '/tmp/LCFG-TestMode-*' 'старше 24 часов'
+        testmode_journal command cleanup-own '/tmp/LCFG-TestMode-*' 'older than 24 hours'
         return 0
     fi
 

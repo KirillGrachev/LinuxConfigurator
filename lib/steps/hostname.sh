@@ -30,13 +30,13 @@ step_hostname() {
     current="$(sys_hostname)"
 
     if [[ -z "$want" ]]; then
-        step_failed 'Hostname.Name не задан в конфигурации'
+        step_failed 'Hostname.Name is not set in the configuration'
         return $?
     fi
 
     # Значение-заглушка из примера не должно молча стать именем боевой машины.
     if [[ "$want" == changeme-host || "$want" == localhost ]]; then
-        step_failed "Hostname.Name = '${want}' похоже на заглушку, задайте реальное имя"
+        step_failed "Hostname.Name = '${want}' looks like a placeholder; set a real name"
         return $?
     fi
 
@@ -44,18 +44,18 @@ step_hostname() {
         # Идемпотентность: повторный прогон не должен ничего менять,
         # но запись в /etc/hosts всё равно проверяется - её могло не быть.
         if hosts_has_entry "$hosts_path" "$want"; then
-            step_ok "имя уже '${want}', /etc/hosts в порядке"
+            step_ok "name is already '${want}', /etc/hosts is fine"
             return $?
         fi
-        log_info "Имя уже '${want}', но в ${hosts_path} нет записи - добавляю."
+        log_info "Name is already '${want}' but ${hosts_path} has no entry; adding it."
     fi
 
-    if confirm_step_action "$hosts_path" "Установить имя машины '${want}'" High; then
+    if confirm_step_action "$hosts_path" "Set machine name to '${want}'" High; then
         :
     else
         local rc=$?
-        if (( rc == 2 )); then step_skipped '--what-if: имя не менялось'; return $?; fi
-        step_skipped 'пользователь отказался менять имя машины'
+        if (( rc == 2 )); then step_skipped '--what-if: name untouched'; return $?; fi
+        step_skipped 'user declined to change the machine name'
         return $?
     fi
 
@@ -65,13 +65,13 @@ step_hostname() {
     fi
 
     if ! run_cmd hostnamectl set-hostname "$want"; then
-        step_failed 'hostnamectl set-hostname завершился ошибкой'
+        step_failed 'hostnamectl set-hostname failed'
         return $?
     fi
 
     if config_get_bool '.Hostname.UpdateHostsFile' true; then
         hosts_rewrite_loopback "$hosts_path" "$aliases" || {
-            step_failed "не удалось обновить ${hosts_path}"
+            step_failed "failed to update ${hosts_path}"
             return $?
         }
     fi

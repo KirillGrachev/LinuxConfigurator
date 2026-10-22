@@ -40,7 +40,7 @@ step_updates() {
     family="$(pkg_family)"
 
     if [[ "$family" != debian ]]; then
-        step_skipped "unattended-upgrades настраивается для Debian/Ubuntu, обнаружено семейство '${family}'"
+        step_skipped "unattended-upgrades is configured for Debian/Ubuntu, found family '${family}'"
         return $?
     fi
 
@@ -50,13 +50,13 @@ step_updates() {
 
     if config_get_bool '.Updates.ConfigureUnattendedUpgrades' true; then
         if ! pkg_is_installed unattended-upgrades; then
-            pkg_install unattended-upgrades || log_warn 'unattended-upgrades не установился.'
+            pkg_install unattended-upgrades || log_warn 'unattended-upgrades installation failed.'
         fi
 
         if updates_write_periodic && updates_write_unattended; then
             done_parts+=('unattended-upgrades')
         else
-            step_failed 'не удалось записать конфигурацию unattended-upgrades'
+            step_failed 'failed to write the unattended-upgrades configuration'
             return $?
         fi
 
@@ -65,21 +65,21 @@ step_updates() {
     fi
 
     if config_get_bool '.Updates.UpgradeNow' false; then
-        if ! confirm_step_action 'пакетная база' 'Полный dist-upgrade сейчас (может занять минуты)' High; then
+        if ! confirm_step_action 'package database' 'Run a full dist-upgrade now (may take minutes)' High; then
             local rc=$?
-            if (( rc == 2 )); then done_parts+=('upgrade=whatif'); else done_parts+=('upgrade=отменён'); fi
+            if (( rc == 2 )); then done_parts+=('upgrade=whatif'); else done_parts+=('upgrade=cancelled'); fi
         else
-            log_info 'Запускаю dist-upgrade. На одноядерной машине это может занять несколько минут.'
+            log_info 'Starting dist-upgrade. On a single-core machine this can take several minutes.'
             if updates_run_upgrade; then
-                done_parts+=('upgrade=выполнен')
+                done_parts+=('upgrade=done')
             else
-                done_parts+=('upgrade=с ошибками')
+                done_parts+=('upgrade=with errors')
             fi
         fi
     fi
 
     if config_get_bool '.Updates.PurgeOldKernels' true; then
-        updates_purge_old_kernels "$(config_get_int '.Cleanup.KeepKernels' 2)" && done_parts+=('kernels=очищены')
+        updates_purge_old_kernels "$(config_get_int '.Cleanup.KeepKernels' 2)" && done_parts+=('kernels=cleaned')
     fi
 
     step_ok "$(IFS=', '; echo "${done_parts[*]}")"
@@ -191,14 +191,14 @@ updates_purge_old_kernels() {
     done < <(dpkg -l 2>/dev/null | awk '/^ii  linux-image-[0-9]/{print $2}' | sed 's/^linux-image-//' | sort -V)
 
     if (( ${#installed[@]} <= keep )); then
-        log_debug "Установлено ядер: ${#installed[@]}, порог ${keep} - удалять нечего."
+        log_debug "Kernels installed: ${#installed[@]}, threshold ${keep}; nothing to remove."
         return 0
     fi
 
-    run_quiet apt-get -y autoremove --purge || log_warn 'autoremove завершился ошибкой.'
+    run_quiet apt-get -y autoremove --purge || log_warn 'autoremove failed.'
 
     if ! dpkg -l "linux-image-${running}" > /dev/null 2>&1; then
-        log_warn "Текущее ядро ${running} не найдено в списке пакетов - очистка ядер пропущена."
+        log_warn "Running kernel ${running} not found in the package list; kernel cleanup skipped."
     fi
     return 0
 }

@@ -50,7 +50,7 @@ DefaultTasksMax=${tasks_max}
 " 644 root:root
         applied+=("systemd:NOFILE=${nofile}")
 
-        run_quiet systemctl daemon-reexec || log_warn 'systemctl daemon-reexec не выполнен - лимиты применятся после перезагрузки.'
+        run_quiet systemctl daemon-reexec || log_warn 'systemctl daemon-reexec did not run; limits apply after reboot.'
     fi
 
     # PAM: limits.d
@@ -68,11 +68,11 @@ root hard nofile ${hard}
 " 644 root:root
         applied+=("pam:nofile=${soft}/${hard}")
     else
-        log_warn '/etc/security/limits.d отсутствует - PAM-лимиты не настроены.'
+        log_warn '/etc/security/limits.d is missing; PAM limits not configured.'
     fi
 
     if (( ${#applied[@]} == 0 )); then
-        step_failed 'не удалось применить ни один лимит'
+        step_failed 'failed to apply any limit'
         return $?
     fi
 

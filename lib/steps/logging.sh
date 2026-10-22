@@ -22,7 +22,7 @@
 
 step_logging() {
     if ! config_section_enabled Journald && ! config_section_enabled Logrotate; then
-        step_skipped 'Journald и Logrotate отключены'
+        step_skipped 'Journald and Logrotate are disabled'
         return $?
     fi
 
@@ -32,7 +32,7 @@ step_logging() {
         if logging_configure_journald; then
             done_parts+=("journald=$(config_get '.Journald.SystemMaxUse' '400M')")
         else
-            step_failed 'не удалось применить настройки journald'
+            step_failed 'failed to apply journald settings'
             return $?
         fi
     fi
@@ -41,12 +41,12 @@ step_logging() {
         local rules_count
         rules_count="$(logging_configure_logrotate)"
         if [[ -n "$rules_count" ]]; then
-            done_parts+=("logrotate=${rules_count} правил(а)")
+            done_parts+=("logrotate=${rules_count} rules")
         fi
     fi
 
     if (( ${#done_parts[@]} == 0 )); then
-        step_skipped 'нечего настраивать'
+        step_skipped 'nothing to configure'
         return $?
     fi
 
@@ -74,7 +74,7 @@ ForwardToSyslog=$(bool_directive "$(config_get_bool '.Journald.ForwardToSyslog' 
 " 644 root:root
 
     run_quiet systemctl restart systemd-journald || {
-        log_warn 'systemd-journald не перезапущен, настройки применятся при следующей загрузке.'
+        log_warn 'systemd-journald was not restarted; settings apply at next boot.'
     }
     return 0
 }
@@ -125,7 +125,7 @@ logging_configure_logrotate() {
     # ВСЕХ журналов в системе, а не только своего, поэтому лучше откатить.
     if ! testmode_enabled && run_has logrotate; then
         if ! logrotate -d "$conf" > /dev/null 2>&1; then
-            log_error "logrotate отклонил ${conf}:"
+            log_error "logrotate rejected ${conf}:"
             logrotate -d "$conf" 2>&1 | head -3 | while IFS= read -r l; do log_error "  ${l}"; done
             fs_remove "$conf"
             printf ''

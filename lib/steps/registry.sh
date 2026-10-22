@@ -29,22 +29,22 @@
 
 step_definitions() {
     cat <<'TSV'
-hostname	step_hostname	Имя машины и запись в /etc/hosts	false	Low
-time	step_time	Часовой пояс, локаль и синхронизация времени	true	Low
-swap	step_swap	Файл подкачки, vm.swappiness и запись в /etc/fstab	true	Medium
-sysctl	step_sysctl	Параметры ядра: тюнинг и hardening	true	Medium
-limits	step_limits	Лимиты дескрипторов для systemd и PAM	true	Low
-packages	step_packages	Установка и удаление пакетов	true	Medium
-users	step_users	Пользователи, группы, sudo и SSH-ключи	true	High
-ssh	step_ssh	 Hardening sshd: только ключи, лимиты попыток	true	High
-firewall	step_firewall	nftables: политика INPUT и открытые порты	true	High
-fail2ban	step_fail2ban	Блокировка подбора паролей	true	Medium
-updates	step_updates	Автоматические обновления безопасности	true	Medium
-logging	step_logging	Ограничение journald и правила logrotate	true	Low
-docker	step_docker	Docker: установка, ротация логов, лимиты	true	Medium
-motd	step_motd	Приветственное сообщение при входе	true	Low
-cleanup	step_cleanup	Очистка пакетов, старых ядер и временных файлов	true	Medium
-report	step_report	Сводка состояния машины	false	Low
+hostname	step_hostname	Machine name and the /etc/hosts entry	false	Low
+time	step_time	Timezone, locale and time synchronization	true	Low
+swap	step_swap	Swap file, vm.swappiness and the /etc/fstab entry	true	Medium
+sysctl	step_sysctl	Kernel parameters: tuning and hardening	true	Medium
+limits	step_limits	Descriptor limits for systemd and PAM	true	Low
+packages	step_packages	Package install and removal	true	Medium
+users	step_users	Users, groups, sudo and SSH keys	true	High
+ssh	step_ssh	 Hardening sshd: keys only, attempt limits	true	High
+firewall	step_firewall	nftables: INPUT policy and open ports	true	High
+fail2ban	step_fail2ban	Password brute-force blocking	true	Medium
+updates	step_updates	Automatic security updates	true	Medium
+logging	step_logging	journald limits and logrotate rules	true	Low
+docker	step_docker	Docker: install, log rotation, limits	true	Medium
+motd	step_motd	Login banner	true	Low
+cleanup	step_cleanup	Package, old kernel and temp file cleanup	true	Medium
+report	step_report	Machine state summary	false	Low
 TSV
 }
 
@@ -125,7 +125,7 @@ step_exists() {
 # Печатает таблицу шагов для меню и для --help.
 step_print_table() {
     local name description impact
-    printf '%-12s %-6s %s\n' 'ШАГ' 'РИСК' 'ОПИСАНИЕ'
+    printf '%-12s %-6s %s\n' 'STEP' 'RISK' 'DESCRIPTION'
     while IFS=$'\t' read -r name _ description _ impact; do
         [[ -n "$name" ]] || continue
         printf '%-12s %-6s %s\n' "$name" "$impact" "$description"

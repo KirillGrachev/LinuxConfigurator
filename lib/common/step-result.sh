@@ -35,21 +35,21 @@ step_reset_message() {
 }
 
 step_ok() {
-    LCFG_STEP_MESSAGE="${1:-выполнено}"
+    LCFG_STEP_MESSAGE="${1:-done}"
     LCFG_STEP_DATA="${2:-}"
     log_info "${LCFG_STEP_NAME:-step}: ${LCFG_STEP_MESSAGE}"
     return "$LC_RC_SUCCESS"
 }
 
 step_failed() {
-    LCFG_STEP_MESSAGE="${1:-ошибка}"
+    LCFG_STEP_MESSAGE="${1:-failed}"
     LCFG_STEP_DATA="${2:-}"
     log_error "${LCFG_STEP_NAME:-step}: ${LCFG_STEP_MESSAGE}"
     return "$LC_RC_FAILED"
 }
 
 step_skipped() {
-    LCFG_STEP_MESSAGE="${1:-пропущено}"
+    LCFG_STEP_MESSAGE="${1:-skipped}"
     LCFG_STEP_DATA="${2:-}"
     log_debug "${LCFG_STEP_NAME:-step}: ${LCFG_STEP_MESSAGE}"
     return "$LC_RC_SKIPPED"

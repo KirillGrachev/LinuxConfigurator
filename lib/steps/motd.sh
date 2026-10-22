@@ -31,7 +31,7 @@ step_motd() {
     path="$(config_get '.Motd.Path' '/etc/update-motd.d/99-linuxconfigurator')"
 
     if [[ ! -d /etc/update-motd.d ]]; then
-        step_skipped '/etc/update-motd.d отсутствует (не Debian/Ubuntu или отключён pam_motd)'
+        step_skipped '/etc/update-motd.d is missing (not Debian/Ubuntu, or pam_motd disabled)'
         return $?
     fi
 
@@ -42,13 +42,13 @@ step_motd() {
     # не падает при выполнении: ошибка здесь показывалась бы при каждом входе.
     if ! testmode_enabled; then
         if ! bash -n "$path" 2>/dev/null; then
-            log_error "Сгенерированный ${path} не прошёл проверку синтаксиса - удаляю."
+            log_error "Generated ${path} failed the syntax check; removing it."
             fs_remove "$path"
-            step_failed 'motd-скрипт синтаксически некорректен'
+            step_failed 'the motd script is syntactically invalid'
             return $?
         fi
         if ! "$path" > /dev/null 2>&1; then
-            log_warn "Сгенерированный ${path} вернул ненулевой код - проверьте вывод при входе."
+            log_warn "Generated ${path} returned a non-zero code; check the login output."
         fi
     fi
 
@@ -102,7 +102,7 @@ fi
 
 if [ "${show_reboot}" = 1 ]; then
     if [ -f /var/run/reboot-required ]; then
-        printf '   \\033[33m* требуется перезагрузка: %s\\033[0m\\n' \\
+        printf '   \\033[33m* reboot required: %s\\033[0m\\n' \\
             "\$(cat /var/run/reboot-required.pkgs 2>/dev/null | head -3 | paste -sd, -)"
     else
         RUNNING="\$(uname -r 2>/dev/null)"
@@ -112,7 +112,7 @@ if [ "${show_reboot}" = 1 ]; then
             NEWEST="\${f#/boot/vmlinuz-}"
         done
         if [ -n "\$NEWEST" ] && [ "\$NEWEST" != "\$RUNNING" ]; then
-            printf '   \\033[33m* установлено ядро %s, загружено %s - нужна перезагрузка\\033[0m\\n' \\
+            printf '   \\033[33m* kernel %s installed, %s running; reboot required\\033[0m\\n' \\
                 "\$NEWEST" "\$RUNNING"
         fi
     fi

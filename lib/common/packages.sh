@@ -84,7 +84,7 @@ pkg_install() {
     local -a wanted=()
     local name
 
-    pkg_supported || { log_warn 'Пакетный менеджер не найден, установка пропущена.'; return 1; }
+    pkg_supported || { log_warn 'Package manager not found; install skipped.'; return 1; }
 
     for name in "$@"; do
         [[ -n "$name" ]] || continue
@@ -94,7 +94,7 @@ pkg_install() {
     done
 
     if (( ${#wanted[@]} == 0 )); then
-        log_debug "Все пакеты уже установлены: $*"
+        log_debug "All packages are already installed: $*"
         return 0
     fi
 

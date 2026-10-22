@@ -31,7 +31,7 @@ lcfg_source_dir() {
         [[ "$(basename "$file")" == "$skip" ]] && continue
         # shellcheck disable=SC1090
         source "$file" || {
-            echo "[FATAL] Ошибка загрузки ${file}" >&2
+            echo "[FATAL] Failed to load ${file}" >&2
             return 1
         }
     done < <(find "$dir" -maxdepth 1 -type f -name '*.sh' -print0 | sort -z)

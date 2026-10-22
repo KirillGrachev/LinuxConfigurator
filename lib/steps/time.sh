@@ -36,20 +36,20 @@ step_time() {
     if time_apply_timezone "$tz"; then
         done_parts+=("tz=${tz}")
     else
-        step_failed "не удалось установить часовой пояс '${tz}'"
+        step_failed "failed to set timezone '${tz}'"
         return $?
     fi
 
     if time_apply_locale "$locale"; then
         done_parts+=("locale=${locale}")
     else
-        log_warn "Локаль '${locale}' не применена (нет genlocale или файл недоступен) - продолжаю."
+        log_warn "Locale '${locale}' was not applied (genlocale missing or file unavailable); continuing."
     fi
 
     if config_get_bool '.Time.Ntp.Enabled' true; then
         ntp_result="$(time_apply_ntp)"
         case "$ntp_result" in
-            '')          step_failed 'не удалось включить синхронизацию времени' ; return $? ;;
+            '')          step_failed 'failed to enable time synchronization' ; return $? ;;
             skipped)     done_parts+=('ntp=skipped') ;;
             *)           done_parts+=("ntp=${ntp_result}") ;;
         esac
@@ -67,18 +67,18 @@ time_apply_timezone() {
     # Проверка по базе zoneinfo, а не на глаз: опечатка вроде Europe/Helsinky
     # прошла бы через timedatectl на части дистрибутивов и оставила машину в UTC.
     if [[ ! -f "/usr/share/zoneinfo/${tz}" ]]; then
-        log_error "Часовой пояс '${tz}' отсутствует в /usr/share/zoneinfo."
+        log_error "Timezone '${tz}' is missing from /usr/share/zoneinfo."
         return 1
     fi
 
     if [[ "$(cat /etc/timezone 2>/dev/null || true)" == "$tz" ]]; then
-        log_debug "Часовой пояс уже '${tz}'."
+        log_debug "Timezone is already '${tz}'."
         return 0
     fi
 
     if run_has timedatectl; then
         run_cmd timedatectl set-timezone "$tz" && return 0
-        log_warn 'timedatectl не сработал, переключаюсь на прямую запись /etc/localtime.'
+        log_warn 'timedatectl failed; falling back to writing /etc/localtime directly.'
     fi
 
     fs_write '/etc/timezone' "${tz}"$'\n' 644 root:root
@@ -89,7 +89,7 @@ time_apply_locale() {
     local locale="$1"
 
     if fs_is_file '/etc/default/locale' && [[ "$(fs_read /etc/default/locale)" == *"LANG=${locale}"* ]]; then
-        log_debug "Локаль уже ${locale}."
+        log_debug "Locale is already ${locale}."
         return 0
     fi
 
@@ -100,7 +100,7 @@ time_apply_locale() {
         # в glibc и генерации не требует, поэтому её пропускаем.
         if [[ "$locale" != C.UTF-8 && "$locale" != POSIX ]]; then
             fs_append_unique '/etc/locale.gen' "$locale UTF-8"
-            run_quiet locale-gen || log_warn "locale-gen завершился ошибкой, локаль '${locale}' может быть недоступна."
+            run_quiet locale-gen || log_warn "locale-gen failed; locale '${locale}' may be unavailable."
         fi
     fi
 

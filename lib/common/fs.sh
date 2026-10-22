@@ -88,7 +88,7 @@ fs_backup() {
     flat="$(printf '%s' "$path" | tr '/' '_')"
     mkdir -p "$LCFG_BACKUP_DIR" 2>/dev/null || return 0
     cp -a "$path" "${LCFG_BACKUP_DIR}/${flat}.${stamp}" 2>/dev/null || true
-    log_debug "Резервная копия: ${path} -> ${LCFG_BACKUP_DIR}/${flat}.${stamp}"
+    log_debug "Backup: ${path} -> ${LCFG_BACKUP_DIR}/${flat}.${stamp}"
 }
 
 # Записывает файл целиком.
@@ -128,7 +128,7 @@ fs_write() {
         chown "$owner" "$tmp" 2>/dev/null || true
     fi
     mv -f "$tmp" "$path"
-    log_debug "Записан файл ${path} (${#content} байт, mode=${mode})"
+    log_debug "File written: ${path} (${#content} bytes, mode=${mode})"
 }
 
 # Дописывает в конец файла, создавая его при необходимости.

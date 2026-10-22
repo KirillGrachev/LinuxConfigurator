@@ -29,7 +29,7 @@ orchestrator_run_steps() {
     IFS=',' read -r -a names <<< "$(printf '%s' "$list" | tr -d '[:space:]')"
 
     if (( ${#names[@]} == 0 )); then
-        console_fatal 'Список шагов пуст.'
+        console_fatal 'The step list is empty.'
         return 2
     fi
 
@@ -39,8 +39,8 @@ orchestrator_run_steps() {
     for item in "${names[@]}"; do
         [[ -n "$item" ]] || continue
         if ! resolved="$(step_resolve "$item")"; then
-            console_fatal "Неизвестный шаг: '${item}'."
-            console_fatal "Доступные шаги: $(step_list_names | paste -sd, -)"
+            console_fatal "Unknown step: '${item}'."
+            console_fatal "Available steps: $(step_list_names | paste -sd, -)"
             return 2
         fi
         resolved_names+=("$resolved")
@@ -50,8 +50,8 @@ orchestrator_run_steps() {
     # запуск молча ничего не делал и возвращал 0, то есть опечатка в --run-steps
     # выглядела как успешно настроенная машина.
     if (( ${#resolved_names[@]} == 0 )); then
-        console_fatal 'Список шагов пуст после разбора (только разделители или пробелы).'
-        console_fatal "Доступные шаги: $(step_list_names | paste -sd, -)"
+        console_fatal 'The step list is empty after parsing (separators or spaces only).'
+        console_fatal "Available steps: $(step_list_names | paste -sd, -)"
         return 2
     fi
 
@@ -69,7 +69,7 @@ orchestrator_run_steps() {
         orchestrator_run_one "$resolved" "$idx" "$total" || rc=$?
 
         if (( rc != 0 )) && [[ "$stop_on_failure" == true ]]; then
-            log_warn "StopOnFirstFailure=true: прогон остановлен на шаге '${resolved}'."
+            log_warn "StopOnFirstFailure=true: the run stopped at step '${resolved}'."
             break
         fi
 
@@ -91,7 +91,7 @@ orchestrator_run_default_steps() {
     done < <(config_get_array '.General.DefaultSteps')
 
     if (( ${#steps[@]} == 0 )); then
-        log_warn 'General.DefaultSteps пуст, используется порядок из реестра шагов.'
+        log_warn 'General.DefaultSteps is empty; using the registry order.'
         while IFS= read -r line; do
             [[ -n "$line" ]] && steps+=("$line")
         done < <(step_list_names)
@@ -117,14 +117,14 @@ orchestrator_run_one() {
     if ! declare -F "$func" > /dev/null 2>&1; then
         # Уровень Fatal, а не Error: шаг объявлен в реестре, но функции нет -
         # это рассогласование кода и реестра, а не сбой на конкретной машине.
-        log_fatal "Шаг '${name}' объявлен в реестре, но функция ${func} не определена."
-        runtime_add_result "$name" Failed "функция ${func} не найдена" 0
+        log_fatal "Step '${name}' is registered but function ${func} is not defined."
+        runtime_add_result "$name" Failed "function ${func} not found" 0
         return 1
     fi
 
     if [[ "$needs_root" == true ]] && [[ "$(id -u)" -ne 0 ]] && ! runtime_flag test_mode; then
-        runtime_add_result "$name" Skipped 'требуются права root' 0
-        console_skip "${name}: требуются права root."
+        runtime_add_result "$name" Skipped 'requires root' 0
+        console_skip "${name}: requires root privileges."
         return 0
     fi
 
@@ -146,7 +146,7 @@ orchestrator_run_one() {
         *)
             status='Failed'
             if [[ -z "$LCFG_STEP_MESSAGE" ]]; then
-                LCFG_STEP_MESSAGE="шаг завершился с кодом ${rc}"
+                LCFG_STEP_MESSAGE="step exited with code ${rc}"
             fi
             ;;
     esac

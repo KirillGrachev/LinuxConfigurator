@@ -21,8 +21,8 @@
 require_bash() {
     local major="${BASH_VERSINFO[0]:-0}"
     if (( major < 5 )); then
-        console_fatal "Требуется bash 5.0 или новее, обнаружен ${BASH_VERSION}."
-        console_fatal "Причина: EPOCHREALTIME для замера длительности шагов."
+        console_fatal "bash 5.0 or newer is required, found ${BASH_VERSION}."
+        console_fatal "Reason: EPOCHREALTIME is used to measure step duration."
         return 2
     fi
     return 0
@@ -39,8 +39,8 @@ require_cmd() {
     done
 
     if (( ${#missing[@]} > 0 )); then
-        console_fatal "Не найдены обязательные утилиты: ${missing[*]}"
-        console_fatal "Установите их и повторите запуск."
+        console_fatal "Required tools missing: ${missing[*]}"
+        console_fatal "Install them and run again."
         return 2
     fi
     return 0
@@ -51,10 +51,10 @@ require_root() {
         return 0
     fi
     if testmode_enabled; then
-        log_debug 'Права root не требуются в тестовом режиме.'
+        log_debug 'Test mode does not require root.'
         return 0
     fi
-    console_fatal 'Шаг требует прав root. Запустите через sudo или от имени root.'
+    console_fatal 'This step requires root. Run it via sudo or as root.'
     return 2
 }
 
@@ -68,7 +68,7 @@ require_family() {
         [[ "$family" == "$expected" ]] && return 0
     done
 
-    log_warn "Семейство ОС '${family}' не входит в поддерживаемые ($*) - шаг будет пропущён."
+    log_warn "OS family '${family}' is not supported ($*); the step will be skipped."
     return 1
 }
 

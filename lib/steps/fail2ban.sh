@@ -29,17 +29,17 @@ step_fail2ban() {
     if ! pkg_is_installed fail2ban && ! run_has fail2ban-client; then
         if config_get_bool '.Fail2ban.Install' true; then
             pkg_install fail2ban || {
-                step_failed 'fail2ban не установился'
+                step_failed 'fail2ban installation failed'
                 return $?
             }
         else
-            step_skipped 'fail2ban не установлен, Fail2ban.Install = false'
+            step_skipped 'fail2ban is not installed and Fail2ban.Install = false'
             return $?
         fi
     fi
 
     if ! run_has fail2ban-client; then
-        step_skipped 'fail2ban-client недоступен'
+        step_skipped 'fail2ban-client is not available'
         return $?
     fi
 
@@ -50,10 +50,10 @@ step_fail2ban() {
     local content
     content="$(fail2ban_render_jails "$backend")"
 
-    if ! confirm_step_action "$dropin" "Применить jail-конфигурацию fail2ban" Medium; then
+    if ! confirm_step_action "$dropin" "Apply the fail2ban jail configuration" Medium; then
         local rc=$?
-        if (( rc == 2 )); then step_skipped '--what-if: fail2ban не изменялся'; return $?; fi
-        step_skipped 'пользователь отказался менять настройки fail2ban'
+        if (( rc == 2 )); then step_skipped '--what-if: fail2ban untouched'; return $?; fi
+        step_skipped 'user declined to change fail2ban settings'
         return $?
     fi
 
@@ -62,7 +62,7 @@ step_fail2ban() {
 
     run_quiet systemctl enable fail2ban || true
     if ! run_quiet systemctl restart fail2ban; then
-        step_failed 'fail2ban не запустился после применения конфигурации'
+        step_failed 'fail2ban did not start after applying the configuration'
         return $?
     fi
 
@@ -77,7 +77,7 @@ step_fail2ban() {
 
     local jails
     jails="$(printf '%s' "$content" | grep -cE '^\[' || true)"
-    step_ok "jail-секций: ${jails}, backend=${backend}, в бане: ${banned:-0}"
+    step_ok "jail sections: ${jails}, backend=${backend}, banned: ${banned:-0}"
     return $?
 }
 

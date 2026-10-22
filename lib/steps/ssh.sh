@@ -43,7 +43,7 @@ step_ssh() {
     fi
 
     if ! run_has sshd && [[ ! -x /usr/sbin/sshd ]]; then
-        step_skipped 'sshd не установлен'
+        step_skipped 'sshd is not installed'
         return $?
     fi
 
@@ -54,15 +54,15 @@ step_ssh() {
     # Отказ от пароля при отсутствии установленного ключа = гарантированный локаут.
     if ! config_get_bool '.Ssh.PasswordAuthentication' false; then
         if ! ssh_any_key_present; then
-            step_failed 'PasswordAuthentication=false, но ни у одного пользователя нет authorized_keys. Сначала настройте шаг users.'
+            step_failed 'PasswordAuthentication=false but no user has authorized_keys. Run the users step first.'
             return $?
         fi
     fi
 
-    if ! confirm_step_action "$dropin" "Применить hardening sshd" High; then
+    if ! confirm_step_action "$dropin" "Apply sshd hardening" High; then
         local rc=$?
-        if (( rc == 2 )); then step_skipped '--what-if: sshd не изменялся'; return $?; fi
-        step_skipped 'пользователь отказался менять настройки sshd'
+        if (( rc == 2 )); then step_skipped '--what-if: sshd untouched'; return $?; fi
+        step_skipped 'user declined to change sshd settings'
         return $?
     fi
 
@@ -85,7 +85,7 @@ step_ssh() {
     if config_get_bool '.Ssh.ValidateBeforeReload' true; then
         if ! run_quiet sshd -t; then
             ssh_revert_now "$backup_dir"
-            step_failed "sshd -t отклонил конфигурацию, выполнен откат к ${backup_dir}"
+            step_failed "sshd -t rejected the configuration; rolled back to ${backup_dir}"
             return $?
         fi
     fi
@@ -93,13 +93,13 @@ step_ssh() {
     if config_get_bool '.Ssh.ReloadInsteadOfRestart' true; then
         run_quiet systemctl reload ssh || run_quiet systemctl reload sshd || {
             ssh_revert_now "$backup_dir"
-            step_failed 'не удалось перечитать конфигурацию sshd, выполнен откат'
+            step_failed 'failed to reload the sshd configuration; rolled back'
             return $?
         }
     else
         run_quiet systemctl restart ssh || run_quiet systemctl restart sshd || {
             ssh_revert_now "$backup_dir"
-            step_failed 'не удалось перезапустить sshd, выполнен откат'
+            step_failed 'failed to restart sshd; rolled back'
             return $?
         }
     fi
@@ -108,16 +108,16 @@ step_ssh() {
     verify="$(ssh_verify_applied)"
     if [[ "$verify" == ok ]]; then
         ssh_disarm_rollback_guard
-        step_ok "hardening применён и проверен новым подключением"
+        step_ok "hardening applied and verified with a fresh connection"
         return $?
     elif [[ "$verify" == unverified ]]; then
         # Страховку НЕ снимаем: пусть отработает, если вход всё-таки сломан.
-        step_ok "hardening применён, самопроверка подключением недоступна; страховка активна ${guard_sec} с"
+        step_ok "hardening applied, connection self-check unavailable; rollback guard active for ${guard_sec} s"
         return $?
     fi
 
     ssh_revert_now "$backup_dir"
-    step_failed 'проверка после применения не прошла, выполнен откат'
+    step_failed 'post-apply verification failed; rolled back'
     return $?
 }
 
@@ -135,7 +135,7 @@ ssh_ensure_privsep_dir() {
     local dir='/run/sshd'
 
     if testmode_enabled; then
-        testmode_journal directory ensure "$dir" "privilege separation для sshd -t"
+        testmode_journal directory ensure "$dir" "privilege separation for sshd -t"
         return 0
     fi
 
@@ -147,11 +147,11 @@ ssh_ensure_privsep_dir() {
     # выполняется и когда B вернул ненулевой код, то есть предупреждение
     # печаталось бы и после успешного создания каталога.
     if ! mkdir -p "$dir" 2>/dev/null; then
-        log_warn "Не удалось создать ${dir}: sshd -t может завершиться ошибкой, не связанной с конфигурацией."
+        log_warn "Failed to create ${dir}: sshd -t may fail for reasons unrelated to the configuration."
         return 1
     fi
     chmod 0755 "$dir" 2>/dev/null || true
-    log_debug "Создан ${dir} (privilege separation) для корректной работы sshd -t."
+    log_debug "Created ${dir} (privilege separation) so that sshd -t works correctly."
     return 0
 }
 
@@ -168,7 +168,7 @@ ssh_any_key_present() {
     local home auth
 
     if [[ "$(runtime_value users_keys_installed false)" == true ]]; then
-        log_debug 'Ключи установлены шагом users в текущем прогоне.'
+        log_debug 'Keys were installed by the users step in this run.'
         return 0
     fi
 
@@ -209,7 +209,7 @@ ssh_backup_config() {
 ssh_arm_rollback_guard() {
     local backup_dir="$1" guard_sec="$2"
 
-    (( guard_sec > 0 )) || { log_debug 'RollbackGuardSeconds=0, страховка не взводится.'; return 0; }
+    (( guard_sec > 0 )) || { log_debug 'RollbackGuardSeconds=0, rollback guard not armed.'; return 0; }
 
     local revert_script='/usr/local/sbin/lcfg-sshd-revert.sh'
     local content="#!/bin/bash
@@ -233,10 +233,10 @@ fi
 
     systemctl stop lcfg-sshd-revert.timer > /dev/null 2>&1 || true
     systemd-run --on-active="$guard_sec" --unit=lcfg-sshd-revert "$revert_script" > /dev/null 2>&1 || {
-        log_warn 'Не удалось взвести страховку через systemd-run - продолжаю без неё.'
+        log_warn 'Failed to arm the rollback guard via systemd-run; continuing without it.'
         return 1
     }
-    log_info "Страховка sshd взведена: авто-откат через ${guard_sec} с."
+    log_info "sshd rollback guard armed: automatic rollback in ${guard_sec} s."
 }
 
 ssh_disarm_rollback_guard() {
@@ -247,12 +247,12 @@ ssh_disarm_rollback_guard() {
     systemctl stop lcfg-sshd-revert.timer > /dev/null 2>&1 || true
     systemctl reset-failed lcfg-sshd-revert.service lcfg-sshd-revert.timer > /dev/null 2>&1 || true
     rm -f /usr/local/sbin/lcfg-sshd-revert.sh
-    log_debug 'Страховка sshd снята.'
+    log_debug 'sshd rollback guard disarmed.'
 }
 
 ssh_revert_now() {
     local backup_dir="$1"
-    log_warn "Откатываю конфигурацию sshd из ${backup_dir}."
+    log_warn "Rolling back the sshd configuration from ${backup_dir}."
 
     if testmode_enabled; then
         testmode_journal guard revert '/etc/ssh/sshd_config.d' "$backup_dir"
@@ -341,7 +341,7 @@ ssh_neutralize_cloud_init() {
         fs_write "$ci_dropin" "# Перезаписан LinuxConfigurator: вход по паролю отключён.
 PasswordAuthentication no
 " 644 root:root
-        log_debug "Нейтрализован ${ci_dropin}."
+        log_debug "Neutralized ${ci_dropin}."
     fi
 
     ci_cfg='/etc/cloud/cloud.cfg.d/99-linuxconfigurator-ssh.cfg'
@@ -359,20 +359,20 @@ ssh_verify_applied() {
     local effective want_pw want_root
 
     if testmode_enabled; then
-        testmode_journal command verify 'sshd -T' 'проверка применённых значений'
+        testmode_journal command verify 'sshd -T' 'check of applied values'
         printf 'ok'
         return 0
     fi
 
     systemctl is-active ssh > /dev/null 2>&1 || systemctl is-active sshd > /dev/null 2>&1 || {
-        log_error 'sshd не активен после применения конфигурации.'
+        log_error 'sshd is not active after applying the configuration.'
         printf 'failed'
         return 0
     }
 
     effective="$(sshd -T 2>/dev/null)"
     if [[ -z "$effective" ]]; then
-        log_warn 'sshd -T не вернул вывод - проверить значения не удалось.'
+        log_warn 'sshd -T returned no output; values could not be verified.'
         printf 'unverified'
         return 0
     fi
@@ -386,7 +386,7 @@ ssh_verify_applied() {
     actual_root="$(printf '%s\n' "$effective" | awk '/^permitrootlogin /{print $2}')"
 
     if [[ "$actual_pw" != "$want_pw" ]]; then
-        log_error "passwordauthentication: ожидалось '${want_pw}', применяется '${actual_pw}'. Вероятная причина - другой drop-in с более ранним именем."
+        log_error "passwordauthentication: expected '${want_pw}', applied '${actual_pw}'. Likely cause: another drop-in sorting earlier."
         printf 'failed'
         return 0
     fi
@@ -394,10 +394,10 @@ ssh_verify_applied() {
     # sshd -T нормализует prohibit-password в without-password.
     case "$want_root" in
         prohibit-password) [[ "$actual_root" == without-password || "$actual_root" == prohibit-password ]] || {
-            log_error "permitrootlogin: ожидалось prohibit-password, применяется '${actual_root}'."
+            log_error "permitrootlogin: expected prohibit-password, applied '${actual_root}'."
             printf 'failed'; return 0; } ;;
         *) [[ "$actual_root" == "$want_root" ]] || {
-            log_error "permitrootlogin: ожидалось '${want_root}', применяется '${actual_root}'."
+            log_error "permitrootlogin: expected '${want_root}', applied '${actual_root}'."
             printf 'failed'; return 0; } ;;
     esac
 
@@ -423,7 +423,7 @@ ssh_selftest_connect() {
         key="/root/lcfg-generated-keys/${admin}-ed25519"
     fi
 
-    [[ -f "$key" ]] || { log_debug 'Приватный ключ для самопроверки недоступен.'; return 1; }
+    [[ -f "$key" ]] || { log_debug 'Private key for the self-check is not available.'; return 1; }
     [[ -n "$admin" ]] || return 1
     run_has ssh || return 1
 
@@ -438,6 +438,6 @@ ssh_selftest_connect() {
         -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         -o ConnectTimeout=10 "root@127.0.0.1" true 2>/dev/null && return 0
 
-    log_warn 'Самопроверка подключением не прошла - страховка остаётся взведённой.'
+    log_warn 'Connection self-check failed; the rollback guard stays armed.'
     return 1
 }

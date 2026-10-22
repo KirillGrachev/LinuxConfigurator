@@ -36,7 +36,7 @@ step_docker() {
     family="$(pkg_family)"
 
     if [[ "$family" != debian && "$family" != rhel ]]; then
-        step_skipped "автоматическая установка Docker поддержана для Debian/RHEL, обнаружено '${family}'"
+        step_skipped "automatic Docker install supports Debian/RHEL families, found '${family}'"
         return $?
     fi
 
@@ -44,30 +44,30 @@ step_docker() {
 
     if config_get_bool '.Docker.Install' false && ! run_has docker; then
         if docker_install "$family"; then
-            done_parts+=('docker=установлен')
+            done_parts+=('docker=installed')
         else
-            step_failed 'Docker не установился'
+            step_failed 'Docker installation failed'
             return $?
         fi
     elif run_has docker; then
         done_parts+=("docker=$(docker --version 2>/dev/null | awk '{print $3}' | tr -d ',')")
     else
-        step_skipped 'docker не установлен и Docker.Install = false'
+        step_skipped 'docker is not installed and Docker.Install = false'
         return $?
     fi
 
     if ! docker_write_daemon_json; then
-        step_failed 'daemon.json не прошёл проверку и не записан'
+        step_failed 'daemon.json failed validation and was not written'
         return $?
     fi
-    done_parts+=('daemon.json=записан')
+    done_parts+=('daemon.json=written')
 
     if config_get_bool '.Docker.InstallComposePlugin' true && [[ "$family" == debian ]]; then
         if ! dpkg -s docker-compose-plugin > /dev/null 2>&1; then
             if pkg_install docker-compose-plugin; then
-                done_parts+=('compose=установлен')
+                done_parts+=('compose=installed')
             else
-                log_warn 'docker-compose-plugin не установился.'
+                log_warn 'docker-compose-plugin installation failed.'
             fi
         fi
     fi
@@ -77,15 +77,15 @@ step_docker() {
         admin="$(config_get '.Users.Admin.Name' '')"
         if [[ -n "$admin" ]] && id "$admin" > /dev/null 2>&1; then
             run_quiet usermod -aG docker "$admin" && \
-                done_parts+=('группа docker=выдана (ВНИМАНИЕ: эквивалент root)')
+                done_parts+=('docker group=granted (WARNING: equivalent to root)')
         fi
     fi
 
     if config_get_bool '.Docker.RestartAfterConfigure' true; then
         if run_quiet systemctl restart docker; then
-            done_parts+=('docker=перезапущен')
+            done_parts+=('docker=restarted')
         else
-            step_failed 'dockerd не запустился после применения daemon.json - проверьте файл'
+            step_failed 'dockerd did not start after applying daemon.json; check the file'
             return $?
         fi
         # Существующие контейнеры не подхватывают новые настройки логов.
@@ -93,7 +93,7 @@ step_docker() {
             local existing
             existing="$(docker ps -aq 2>/dev/null | wc -l)"
             if (( existing > 0 )); then
-                log_warn "Существующих контейнеров: ${existing}. Новые лимиты логов применятся только после их пересоздания."
+                log_warn "Existing containers: ${existing}. New log limits apply only after they are recreated."
             fi
         fi
     fi
@@ -109,7 +109,7 @@ docker_install() {
     local keyring='/etc/apt/keyrings/docker.asc'
 
     if [[ "$family" != debian ]]; then
-        log_warn "Автоматическая установка для семейства '${family}' не реализована - используйте пакетный менеджер дистрибутива."
+        log_warn "Automatic install is not implemented for family '${family}'; use the distribution package manager."
         return 1
     fi
 
@@ -123,7 +123,7 @@ docker_install() {
 
     if [[ ! -f "$keyring" ]]; then
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.gpg || {
-            log_error 'Не удалось скачать GPG-ключ Docker.'
+            log_error 'Failed to download the Docker GPG key.'
             return 1
         }
         gpg --dearmor --yes -o "$keyring" /tmp/docker.gpg || return 1
@@ -166,7 +166,7 @@ docker_write_daemon_json() {
                 "nofile": { "Name": "nofile", "Hard": $nofile, "Soft": $nofile }
             }
         }')" || {
-        log_error 'Не удалось собрать daemon.json.'
+        log_error 'Failed to build daemon.json.'
         return 1
     }
 
@@ -176,7 +176,7 @@ docker_write_daemon_json() {
         local existing
         existing="$(fs_read "$path" 2>/dev/null || true)"
         if [[ -n "$existing" && "$existing" != "$json" ]]; then
-            log_warn "Существующий ${path} будет перезаписан (резервная копия создаётся автоматически)."
+            log_warn "Existing ${path} will be overwritten (a backup is created automatically)."
         fi
     fi
 

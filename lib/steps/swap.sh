@@ -37,7 +37,7 @@ step_swap() {
     min_free="$(config_get_int '.Swap.MinFreeDiskMegabytes' 4096)"
 
     if (( size_mb <= 0 )); then
-        step_skipped 'Swap.SizeMegabytes = 0, подкачка не создаётся'
+        step_skipped 'Swap.SizeMegabytes = 0, no swap file will be created'
         return $?
     fi
 
@@ -45,28 +45,28 @@ step_swap() {
     if [[ -n "$(swap_active_list)" ]]; then
         if config_get_bool '.Swap.SkipIfAlreadyPresent' true; then
             swap_apply_tuning "$swappiness" "$vfs_pressure"
-            step_ok "подкачка уже активна: $(swap_active_list | head -1 | awk '{print $1" "$2}')"
+            step_ok "swap is already active: $(swap_active_list | head -1 | awk '{print $1" "$2}')"
             return $?
         fi
-        log_warn 'Подкачка уже есть, но SkipIfAlreadyPresent=false - создаю дополнительный файл.'
+        log_warn 'Swap already exists but SkipIfAlreadyPresent=false; creating an additional file.'
     fi
 
     local free_mb
     free_mb="$(sys_disk_free_mb "$(dirname "$path")")"
     if [[ -n "$free_mb" ]] && (( size_mb + min_free > free_mb )); then
-        step_failed "нужно ${size_mb} MiB под подкачку и ${min_free} MiB запаса, свободно ${free_mb} MiB"
+        step_failed "needs ${size_mb} MiB for swap plus ${min_free} MiB reserve, only ${free_mb} MiB free"
         return $?
     fi
 
-    if ! confirm_step_action "$path" "Создать файл подкачки ${size_mb} MiB" Medium; then
+    if ! confirm_step_action "$path" "Create a ${size_mb} MiB swap file" Medium; then
         local rc=$?
-        if (( rc == 2 )); then step_skipped '--what-if: подкачка не создавалась'; return $?; fi
-        step_skipped 'пользователь отказался создавать подкачку'
+        if (( rc == 2 )); then step_skipped '--what-if: swap not created'; return $?; fi
+        step_skipped 'user declined to create swap'
         return $?
     fi
 
     if ! swap_create_file "$path" "$size_mb"; then
-        step_failed "не удалось создать и включить ${path}"
+        step_failed "failed to create and enable ${path}"
         return $?
     fi
 
@@ -93,9 +93,9 @@ swap_create_file() {
 
     if [[ ! -f "$path" ]]; then
         if ! run_quiet fallocate -l "${size_mb}M" "$path"; then
-            log_debug "fallocate не сработал для ${path}, использую dd."
+            log_debug "fallocate failed for ${path}; falling back to dd."
             if ! run_cmd dd if=/dev/zero of="$path" bs=1M count="$size_mb" status=none; then
-                log_error "Не удалось выделить ${size_mb} MiB под ${path}."
+                log_error "Failed to allocate ${size_mb} MiB for ${path}."
                 return 1
             fi
         fi
@@ -108,13 +108,13 @@ swap_create_file() {
     testmode_journal file chmod "$path" "mode=600"
 
     run_cmd mkswap "$path" > /dev/null || {
-        log_error "mkswap не смог разметить ${path}."
+        log_error "mkswap could not format ${path}."
         return 1
     }
 
     if ! run_cmd swapon "$path"; then
         # Типичная причина - "дыры" в файле после fallocate на btrfs/XFS.
-        log_warn "swapon отклонил ${path}, пересоздаю файл через dd."
+        log_warn "swapon rejected ${path}; recreating the file with dd."
         if testmode_enabled; then
             testmode_journal file recreate "$path" "dd ${size_mb}M"
             return 0
@@ -134,7 +134,7 @@ swap_add_fstab_entry() {
     local entry="${path} none swap sw 0 0"
 
     if fs_is_file /etc/fstab && fs_read /etc/fstab | grep -qE "^[^#]*[[:space:]]${path}[[:space:]]"; then
-        log_debug "Запись для ${path} уже есть в /etc/fstab."
+        log_debug "An entry for ${path} already exists in /etc/fstab."
         return 0
     fi
 
@@ -147,6 +147,6 @@ swap_apply_tuning() {
     local swappiness="$1" vfs_pressure="$2"
 
     run_has sysctl || return 0
-    run_quiet sysctl -w "vm.swappiness=${swappiness}" || log_warn "Не удалось применить vm.swappiness=${swappiness}."
+    run_quiet sysctl -w "vm.swappiness=${swappiness}" || log_warn "Failed to apply vm.swappiness=${swappiness}."
     run_quiet sysctl -w "vm.vfs_cache_pressure=${vfs_pressure}" || true
 }

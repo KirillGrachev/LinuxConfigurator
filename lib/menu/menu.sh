@@ -18,8 +18,8 @@
 
 menu_run() {
     if [[ ! -t 0 ]]; then
-        console_fatal 'Интерактивное меню требует терминала.'
-        console_fatal 'В автоматическом режиме используйте --run-all или --run-steps ssh,firewall.'
+        console_fatal 'The interactive menu requires a terminal.'
+        console_fatal 'In unattended mode use --run-all or --run-steps ssh,firewall.'
         return 2
     fi
 
@@ -27,12 +27,12 @@ menu_run() {
 
     while true; do
         menu_print_header
-        printf '\nВыберите действие:\n'
-        printf '  1) %s\n' 'Выполнить все шаги по умолчанию (General.DefaultSteps)'
-        printf '  2) %s\n' 'Выбрать шаги вручную'
-        printf '  3) %s\n' 'Показать конфигурацию (кратко)'
-        printf '  4) %s\n' 'Проверить конфигурацию по схеме'
-        printf '  0) %s\n' 'Выход'
+        printf '\nChoose an action:\n'
+        printf '  1) %s\n' 'Run all default steps (General.DefaultSteps)'
+        printf '  2) %s\n' 'Pick steps manually'
+        printf '  3) %s\n' 'Show configuration (summary)'
+        printf '  4) %s\n' 'Validate configuration against the schema'
+        printf '  0) %s\n' 'Exit'
         printf '\n> '
         read -r mode || mode=0
 
@@ -40,20 +40,20 @@ menu_run() {
             1) orchestrator_run_default_steps; return $? ;;
             2)
                 selected="$(menu_select_steps)" || return 2
-                [[ -n "$selected" ]] || { console_warn 'Ничего не выбрано.'; continue; }
+                [[ -n "$selected" ]] || { console_warn 'Nothing selected.'; continue; }
                 orchestrator_run_steps "$selected"
                 return $?
                 ;;
             3) menu_print_config_summary ;;
             4)
                 if config_validate_file "$(runtime_value config_path '')"; then
-                    console_ok 'Конфигурация соответствует схеме.'
+                    console_ok 'Configuration matches the schema.'
                 else
-                    console_fail 'Конфигурация НЕ соответствует схеме.'
+                    console_fail 'Configuration does NOT match the schema.'
                 fi
                 ;;
-            0) console_info 'Выход без изменений.'; return 0 ;;
-            *) console_warn "Непонятный выбор: '${mode}'" ;;
+            0) console_info 'Exiting without changes.'; return 0 ;;
+            *) console_warn "Unrecognized choice: '${mode}'" ;;
         esac
     done
 }
@@ -61,10 +61,10 @@ menu_run() {
 menu_print_header() {
     local pending
     console_plain ''
-    console_plain "================ LinuxConfigurator ${LCFG_VERSION} ================"
-    console_plain "Машина: $(sys_describe)"
+    console_plain "=========> LinuxConfigurator ${LCFG_VERSION} <========="
+    console_plain "Machine: $(sys_describe)"
     pending="$(sys_reboot_pending)"
-    [[ -n "$pending" ]] && console_warn "Требуется перезагрузка: ${pending}"
+    [[ -n "$pending" ]] && console_warn "Reboot pending: ${pending}"
     console_plain ''
     step_print_table
 }
@@ -73,8 +73,8 @@ menu_print_header() {
 menu_select_steps() {
     local input
     console_plain ''
-    console_plain "Введите имена шагов через запятую (например: ssh,firewall,fail2ban)"
-    console_plain "или 'all' для всех шагов реестра. Пустая строка - отмена."
+    console_plain "Enter step names comma-separated (example: ssh,firewall,fail2ban)"
+    console_plain "or 'all' for every registry step. An empty line cancels."
     printf '> '
     read -r input || return 1
 
@@ -99,8 +99,8 @@ menu_select_steps() {
     done
 
     if (( ${#unknown[@]} > 0 )); then
-        console_fail "Неизвестные шаги: ${unknown[*]}"
-        console_plain "Доступные: $(step_list_names | paste -sd, -)"
+        console_fail "Unknown steps: ${unknown[*]}"
+        console_plain "Available: $(step_list_names | paste -sd, -)"
         return 2
     fi
 
@@ -123,17 +123,16 @@ menu_select_steps() {
 menu_print_config_summary() {
     local cfg
     cfg="$(runtime_get_config)"
-    [[ -n "$cfg" ]] || { console_warn 'Конфигурация не загружена.'; return 0; }
+    [[ -n "$cfg" ]] || { console_warn 'Configuration is not loaded.'; return 0; }
 
     console_plain ''
-    console_plain '---------------- Конфигурация (кратко) ----------------'
+    console_plain '=========> Configuration Summary <========='
     printf '%s\n' "$cfg" | jq -r '
         to_entries[]
         | select(.value | type == "object")
         | "  \(.key): " + (
             if (.value | has("Enabled")) then
-                (if .value.Enabled then "включено" else "ВЫКЛЮЧЕНО" end)
+                (if .value.Enabled then "enabled" else "DISABLED" end)
             else "—" end)
-        ' 2>/dev/null || console_warn 'Не удалось показать сводку.'
-    console_plain '-------------------------------------------------------'
+        ' 2>/dev/null || console_warn 'Failed to print the summary.'
 }

@@ -130,12 +130,12 @@ testmode_print_summary() {
     report="$(runtime_value testmode_report '')"
 
     console_plain ''
-    console_plain '==================== ТЕСТОВЫЙ РЕЖИМ ===================='
-    console_plain "Изменения системы СИМУЛИРОВАНЫ. Операций в журнале: ${operations}"
+    console_plain '=========> Test Mode <========='
+    console_plain "System changes are SIMULATED. Operations in the journal: ${operations}"
     for category in $(printf '%s\n' "${!LCFG_TESTMODE_COUNTERS[@]}" | sort); do
         console_plain "  ${category}: ${LCFG_TESTMODE_COUNTERS[$category]}"
     done
-    console_plain "Песочница : ${LCFG_TESTMODE_SANDBOX}"
-    console_plain "Отчёт     : ${report}"
+    console_plain "Sandbox : ${LCFG_TESTMODE_SANDBOX}"
+    console_plain "Report  : ${report}"
     console_plain '========================================================'
 }

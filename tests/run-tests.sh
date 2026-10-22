@@ -60,8 +60,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if ! BATS_BIN="$(find_bats)"; then
-    echo "[FATAL] bats не найден." >&2
-    echo "        Установка: apt-get install bats   (Debian/Ubuntu)" >&2
+    echo "[FATAL] bats not found." >&2
+    echo "        Install: apt-get install bats   (Debian/Ubuntu)" >&2
     echo "                   dnf install bats       (RHEL/Fedora)" >&2
     echo "                   git clone https://github.com/bats-core/bats-core tests/bats" >&2
     exit 2
@@ -74,7 +74,7 @@ for tool in jq awk sed grep find; do
     command -v "$tool" > /dev/null 2>&1 || missing+=("$tool")
 done
 if (( ${#missing[@]} > 0 )); then
-    echo "[FATAL] Не найдены обязательные утилиты: ${missing[*]}" >&2
+    echo "[FATAL] Required tools missing: ${missing[*]}" >&2
     exit 2
 fi
 
@@ -84,10 +84,10 @@ if (( ${#TARGETS[@]} == 0 )); then
     done < <(find "${SCRIPT_DIR}" -maxdepth 1 -name '*.bats' -print0 | sort -z)
 fi
 
-echo "==================== ТЕСТЫ LinuxConfigurator ===================="
+echo "=========> LinuxConfigurator Tests <========="
 echo "bats     : ${BATS_BIN}"
-echo "проект   : ${PROJECT_ROOT}"
-echo "наборов  : ${#TARGETS[@]}"
+echo "project  : ${PROJECT_ROOT}"
+echo "suites   : ${#TARGETS[@]}"
 echo "================================================================="
 echo
 
@@ -103,7 +103,7 @@ for target in "${TARGETS[@]}"; do
         elif [[ -f "${SCRIPT_DIR}/${target}.bats" ]]; then
             target="${SCRIPT_DIR}/${target}.bats"
         else
-            echo "[FATAL] Набор тестов не найден: ${target}" >&2
+            echo "[FATAL] Test suite not found: ${target}" >&2
             exit 2
         fi
     fi
@@ -134,7 +134,7 @@ for target in "${TARGETS[@]}"; do
     # обнуляла итог.
     total_passed=$(( total_passed + n_tests - n_failed ))
     total_failed=$(( total_failed + n_failed ))
-    echo "[..] ${n_tests} тестов, ${n_failed} упало, ${n_skipped} пропущено (skip)"
+    echo "[..] ${n_tests} tests, ${n_failed} failed, ${n_skipped} skipped"
 
     if (( rc != 0 )); then
         failed_files+=("$(basename "$target")")
@@ -142,10 +142,10 @@ for target in "${TARGETS[@]}"; do
     echo
 done
 
-echo "======================== ИТОГ ПО ТЕСТАМ ========================"
-echo "прошло тестов      : ${total_passed}"
-echo "упало тестов       : ${total_failed}"
-echo "наборов с ошибками : ${#failed_files[@]} из ${#TARGETS[@]}"
+echo "=========> Test Summary <========="
+echo "tests passed       : ${total_passed}"
+echo "tests failed       : ${total_failed}"
+echo "suites with errors : ${#failed_files[@]} of ${#TARGETS[@]}"
 if (( ${#failed_files[@]} > 0 )); then
     printf '  - %s\n' "${failed_files[@]}"
 fi

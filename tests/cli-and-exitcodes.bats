@@ -10,53 +10,53 @@ setup() {
     load test_helper
 }
 
-@test "--help возвращает 0 и печатает справку" {
+@test "--help returns 0 and prints the usage" {
     run "$LCFG_BIN" --help
     [ "$status" -eq 0 ]
     grep -q 'run-steps' <<< "$output"
     grep -q 'test-mode' <<< "$output"
 }
 
-@test "--version возвращает 0 и печатает версию" {
+@test "--version returns 0 and prints the version" {
     run "$LCFG_BIN" --version
     [ "$status" -eq 0 ]
     grep -qE 'LinuxConfigurator [0-9]+\.[0-9]+\.[0-9]+' <<< "$output"
 }
 
-@test "неизвестный аргумент возвращает 2" {
-    run "$LCFG_BIN" --несуществующий-флаг
+@test "an unknown argument returns 2" {
+    run "$LCFG_BIN" --no-such-flag
     [ "$status" -eq 2 ]
-    grep -q 'Неизвестный аргумент' <<< "$output"
+    grep -q 'Unknown argument' <<< "$output"
 }
 
-@test "запуск без выбора режима возвращает 2" {
+@test "starting without a run mode returns 2" {
     run "$LCFG_BIN" --config "$(lcfg_test_config)"
     [ "$status" -eq 2 ]
-    grep -q 'Не выбран режим запуска' <<< "$output"
+    grep -q 'No run mode selected' <<< "$output"
 }
 
-@test "неизвестный шаг возвращает 2 и перечисляет доступные" {
-    run lcfg_run_testmode --run-steps ssh,такого_шага_нет
+@test "an unknown step returns 2 and lists the available ones" {
+    run lcfg_run_testmode --run-steps ssh,no_such_step
     [ "$status" -eq 2 ]
-    grep -q 'Неизвестный шаг' <<< "$output"
+    grep -q 'Unknown step' <<< "$output"
     grep -q 'firewall' <<< "$output"
 }
 
-@test "неизвестный шаг отклоняется ДО выполнения первого шага" {
+@test "an unknown step is rejected BEFORE the first step runs" {
     # Ошибка в шестом шаге списка не должна обнаруживаться после того, как первые
     # пять уже изменили систему.
-    run lcfg_run_testmode --run-steps hostname,несуществующий
+    run lcfg_run_testmode --run-steps hostname,no_such_step
     [ "$status" -eq 2 ]
     ! grep -q '\[OK\] hostname' <<< "$output" || { echo "$output"; return 1; }
 }
 
-@test "отсутствующий файл конфигурации возвращает 2" {
-    run "$LCFG_BIN" --validate-config --config /tmp/нет-такого-файла-$$.json
+@test "a missing configuration file returns 2" {
+    run "$LCFG_BIN" --validate-config --config /tmp/no-such-file-$$.json
     [ "$status" -eq 2 ]
-    grep -q 'не найден' <<< "$output"
+    grep -q 'not found' <<< "$output"
 }
 
-@test "алиас шага принимается вместо канонического имени" {
+@test "a step alias is accepted instead of the canonical name" {
     # users добавлен и ключ экспортирован: на чистой машине защита шага ssh от
     # локаута иначе корректно отказалась бы отключать пароли, и тест проверял бы
     # не разрешение алиасов, а наличие ключей на хосте.
@@ -71,39 +71,39 @@ setup() {
     grep -q '\[OK\]    users ' <<< "$output" || { echo "$output"; return 1; }
 }
 
-@test "регистр имени шага не важен" {
+@test "step name case does not matter" {
     run lcfg_run_testmode --run-steps HOSTNAME,Swap
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
     grep -q '\[OK\]    hostname ' <<< "$output"
     grep -q '\[OK\]    swap ' <<< "$output"
 }
 
-@test "пробелы вокруг имён шагов игнорируются" {
+@test "spaces around step names are ignored" {
     run lcfg_run_testmode --run-steps ' hostname , swap '
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
-@test "пустой список шагов возвращает 2" {
+@test "an empty step list returns 2" {
     run lcfg_run_testmode --run-steps '  ,  ,'
     [ "$status" -eq 2 ]
-    grep -q 'Список шагов пуст' <<< "$output"
+    grep -q 'The step list is empty' <<< "$output"
 }
 
-@test "падающий шаг даёт код возврата 1, а остальные шаги выполняются" {
+@test "a failing step returns 1 while the other steps still run" {
     # Hostname.Name = changeme-host намеренно приводит шаг к Failed.
     jq '.Hostname.Name = "changeme-host"' "$LCFG_ROOT/config/config.json" > /tmp/lcfg-fail-$$.json
     run "$LCFG_BIN" --test-mode --config /tmp/lcfg-fail-$$.json \
         --run-steps hostname,sysctl,limits
     rm -f /tmp/lcfg-fail-$$.json
 
-    [ "$status" -eq 1 ] || { echo "ожидался код 1, получен $status: $output"; return 1; }
+    [ "$status" -eq 1 ] || { echo "expected code 1, got $status: $output"; return 1; }
     grep -q '\[FAIL\] hostname' <<< "$output" || { echo "$output"; return 1; }
     # StopOnFirstFailure = false: прогон продолжается после ошибки.
     grep -q '\[OK\]    sysctl' <<< "$output" || { echo "$output"; return 1; }
-    grep -q 'ошибок: 1' <<< "$output" || { echo "$output"; return 1; }
+    grep -q 'failed: 1' <<< "$output" || { echo "$output"; return 1; }
 }
 
-@test "StopOnFirstFailure=true прерывает прогон на первой ошибке" {
+@test "StopOnFirstFailure=true aborts the run at the first failure" {
     jq '.Hostname.Name = "changeme-host" | .General.StopOnFirstFailure = true' \
         "$LCFG_ROOT/config/config.json" > /tmp/lcfg-stop-$$.json
     run "$LCFG_BIN" --test-mode --config /tmp/lcfg-stop-$$.json \
@@ -112,20 +112,20 @@ setup() {
 
     [ "$status" -eq 1 ]
     grep -q 'StopOnFirstFailure' <<< "$output" || { echo "$output"; return 1; }
-    ! grep -q '\[OK\]    sysctl' <<< "$output" || { echo "прогон не остановился: $output"; return 1; }
+    ! grep -q '\[OK\]    sysctl' <<< "$output" || { echo "the run did not stop: $output"; return 1; }
 }
 
-@test "защита от самоблокировки: firewall без порта sshd отклоняется" {
+@test "lockout protection: a firewall without the sshd port is rejected" {
     jq '.Firewall.AllowedTcpPorts = [80, 443]' "$LCFG_ROOT/config/config.json" \
         > /tmp/lcfg-nossh-$$.json
     run "$LCFG_BIN" --test-mode --config /tmp/lcfg-nossh-$$.json --run-steps firewall
     rm -f /tmp/lcfg-nossh-$$.json
 
     [ "$status" -eq 1 ]
-    grep -q 'не содержит порт sshd' <<< "$output" || { echo "$output"; return 1; }
+    grep -q 'does not include the sshd port' <<< "$output" || { echo "$output"; return 1; }
 }
 
-@test "защита: ssh с PasswordAuthentication=false и без ключей отклоняется" {
+@test "protection: ssh with PasswordAuthentication=false and no keys is rejected" {
     # Users.Enabled=false означает, что ключи никто не установил.
     jq '.Users.Enabled = false | .Hostname.Name = "t-host"' \
         "$LCFG_ROOT/config/config.json" > /tmp/lcfg-nokey-$$.json
@@ -136,29 +136,29 @@ setup() {
     rm -f /tmp/lcfg-nokey-$$.json
 
     case "$output" in
-        *'нет authorized_keys'*) [ "$status" -eq 1 ] ;;
-        *'hardening применён'*)  [ "$status" -eq 0 ] ;;
-        *) echo "неожиданный результат: $output"; return 1 ;;
+        *'no user has authorized_keys'*) [ "$status" -eq 1 ] ;;
+        *'hardening applied'*)  [ "$status" -eq 0 ] ;;
+        *) echo "unexpected result: $output"; return 1 ;;
     esac
 }
 
-@test "--log переопределяет путь журнала из конфигурации" {
+@test "--log overrides the log path from the configuration" {
     local logf="/tmp/lcfg-log-$$.txt"
     rm -f "$logf"
     run "$LCFG_BIN" --test-mode --log "$logf" --config "$(lcfg_test_config)" --run-steps hostname
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-    [ -f "$logf" ] || { echo "журнал не создан в $logf"; return 1; }
+    [ -f "$logf" ] || { echo "log file not created at $logf"; return 1; }
     grep -q '\[INFO \]\|\[DEBUG\]' "$logf"
     rm -f "$logf"
 }
 
-@test "сводка печатается всегда, даже когда все шаги пропущены" {
+@test "the summary prints even when every step is skipped" {
     jq '.Hostname.Enabled = false | .Swap.Enabled = false' \
         "$LCFG_ROOT/config/config.json" > /tmp/lcfg-skip-$$.json
     run "$LCFG_BIN" --test-mode --config /tmp/lcfg-skip-$$.json --run-steps hostname,swap
     rm -f /tmp/lcfg-skip-$$.json
 
     [ "$status" -eq 0 ]
-    grep -q 'ИТОГ' <<< "$output" || { echo "$output"; return 1; }
-    grep -q 'пропущено: 2' <<< "$output" || { echo "$output"; return 1; }
+    grep -q 'Summary' <<< "$output" || { echo "$output"; return 1; }
+    grep -q 'skipped: 2' <<< "$output" || { echo "$output"; return 1; }
 }
